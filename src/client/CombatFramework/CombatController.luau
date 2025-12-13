@@ -1,7 +1,7 @@
 --[[
 	Module: CombatController
 	Type: Client Main Controller
-	Location: StarterPlayer.StarterPlayerScripts.CombatController.CombatController
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.CombatController
 	Path: src/client/CombatFramework/CombatController.luau
 	
 	Description:
@@ -24,7 +24,6 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 -- Module Imports
 local RS = ReplicatedStorage
@@ -40,9 +39,47 @@ local DebugLogger = require(Core.DebugLogger)
 local InputHandler = require(script.Parent.InputHandler)
 local InputBuffering = require(script.Parent.InputBuffering)
 local StateManager = require(script.Parent.StateManager)
+local MovementController = require(script.Parent.MovementController)
+local VisualEffectsController = require(script.Parent.VisualEffectsController)
 
 -- Constants
 local LocalPlayer = Players.LocalPlayer
+
+-- Cooldown configuration lookup table (more efficient than if-elseif chain)
+local COOLDOWN_CONFIGS = {
+	[Enums.ActionType.M1] = function() return Config.LightAttack.Cooldown end,
+	[Enums.ActionType.M2] = function() return Config.StrongAttack.Cooldown end,
+	[Enums.ActionType.Q] = function() return Config.Dash.Cooldown end,
+	[Enums.ActionType.C] = function() return Config.Slide.Cooldown end,
+	[Enums.ActionType.F] = function() return Config.Block.Cooldown end,
+}
+
+-- Valid states for each action type
+local VALID_ACTION_STATES = {
+	[Enums.ActionType.M1] = {
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Attacking] = true, -- Combo chains
+		[Enums.CombatState.Dashing] = true, -- Cancel dash
+		[Enums.CombatState.Sliding] = true, -- Cancel slide
+	},
+	[Enums.ActionType.M2] = {
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Dashing] = true, -- Cancel dash
+		[Enums.CombatState.Sliding] = true, -- Cancel slide
+	},
+	[Enums.ActionType.Q] = {
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Blocking] = true,
+	},
+	[Enums.ActionType.C] = {
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Blocking] = true,
+	},
+	[Enums.ActionType.F] = {
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Blocking] = true, -- Can re-block
+	},
+}
 
 -- Combat Controller Class
 local CombatController = {}
@@ -56,6 +93,8 @@ type CombatController = {
 	_inputHandler: any,
 	_inputBuffering: any,
 	_stateManager: any,
+	_movementController: any,
+	_visualEffects: any,
 	_networkManager: any?,
 	_animationManager: any?,
 	
@@ -66,10 +105,6 @@ type CombatController = {
 	_cooldowns: {[string]: number},
 	_isInitialized: boolean,
 	_enabled: boolean,
-	
-	-- Active movement tracking
-	_activeDash: any?,
-	_activeSlide: any?,
 	
 	Character: Model?,
 	Humanoid: Humanoid?,
@@ -87,6 +122,8 @@ function CombatController.new(): CombatController
 	self._inputHandler = InputHandler.new()
 	self._inputBuffering = InputBuffering.new()
 	self._stateManager = StateManager.new(self)
+	self._movementController = MovementController.new()
+	self._visualEffects = VisualEffectsController.new()
 	self._networkManager = nil
 	self._animationManager = nil
 	
@@ -95,22 +132,15 @@ function CombatController.new(): CombatController
 	self._comboCount = 0
 	self._lastAttackTime = 0
 	
-	-- Cooldowns
-	self._cooldowns = {
-		[Enums.ActionType.M1] = 0,
-		[Enums.ActionType.M2] = 0,
-		[Enums.ActionType.Q] = 0,
-		[Enums.ActionType.C] = 0,
-		[Enums.ActionType.F] = 0,
-	}
+	-- Cooldowns (dynamic initialization from Enums)
+	self._cooldowns = {}
+	for _, actionType in pairs(Enums.ActionType) do
+		self._cooldowns[actionType] = 0
+	end
 	
 	-- Flags
 	self._isInitialized = false
 	self._enabled = false
-	
-	-- Active movement tracking
-	self._activeDash = nil
-	self._activeSlide = nil
 	
 	-- Character References
 	self.Character = nil
@@ -147,9 +177,6 @@ function CombatController:Initialize()
 	-- Initialize input handler
 	self._inputHandler:Initialize()
 	
-	-- Configure mouse lock for combat
-	self:_ConfigureMouseLock()
-	
 	-- Start update loop
 	self:_StartUpdateLoop()
 	
@@ -175,14 +202,6 @@ function CombatController:_WaitForCharacter()
 	LocalPlayer.CharacterAdded:Connect(function(character)
 		self:_OnCharacterAdded(character)
 	end)
-end
-
-function CombatController:_ConfigureMouseLock()
-	-- Enable toggleable mouse lock (Shift key to lock/unlock - Roblox default behavior)
-	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-	UserInputService.MouseIconEnabled = true -- Keep cursor visible when unlocked
-	
-	Logger:Info("Mouse lock toggle enabled (press Shift to lock/unlock)")
 end
 
 function CombatController:_OnCharacterAdded(character: Model)
@@ -225,7 +244,7 @@ function CombatController:_OnCharacterDied()
 	-- Disable inputs
 	self._inputHandler:BlockAllInputs(true)
 	
-	-- Reset state
+	-- Death overrides all states - set directly
 	self._currentState = Enums.CombatState.Dead
 	
 	Logger:Info("Character died")
@@ -242,22 +261,25 @@ function CombatController:_InitializeNetworkManager()
 	
 	self._networkManager = NetworkManager.GetClientInstance()
 	
-	-- Register server callbacks
-	self._networkManager:RegisterCallback(Enums.NetworkEvent.StateChanged, function(newState)
-		self:_OnServerStateChanged(newState)
-	end)
+	-- Register server callbacks using table for cleaner code
+	local networkCallbacks = {
+		[Enums.NetworkEvent.StateChanged] = function(newState)
+			self:_OnServerStateChanged(newState)
+		end,
+		[Enums.NetworkEvent.ActionResult] = function(result)
+			self:_OnActionResult(result)
+		end,
+		[Enums.NetworkEvent.TakeDamage] = function(damageData)
+			self:_OnTakeDamage(damageData)
+		end,
+		[Enums.NetworkEvent.ApplyKnockback] = function(knockbackData)
+			self:_OnApplyKnockback(knockbackData)
+		end,
+	}
 	
-	self._networkManager:RegisterCallback(Enums.NetworkEvent.ActionResult, function(result)
-		self:_OnActionResult(result)
-	end)
-	
-	self._networkManager:RegisterCallback(Enums.NetworkEvent.TakeDamage, function(damageData)
-		self:_OnTakeDamage(damageData)
-	end)
-	
-	self._networkManager:RegisterCallback(Enums.NetworkEvent.ApplyKnockback, function(knockbackData)
-		self:_OnApplyKnockback(knockbackData)
-	end)
+	for eventType, callback in pairs(networkCallbacks) do
+		self._networkManager:RegisterCallback(eventType, callback)
+	end
 	
 	Logger:Debug("NetworkManager initialized")
 end
@@ -281,44 +303,46 @@ end
 -- ========================================
 
 function CombatController:_SetupInputCallbacks()
-	-- M1 - Light Attack
-	self._inputHandler:RegisterCallback(Enums.ActionType.M1, function(_actionType, inputState, _inputObject, _direction)
-		if inputState == Enum.UserInputState.Begin then
-			self:_HandleLightAttack()
-		end
-	end)
+	-- Register input callbacks using table for cleaner code
+	local inputCallbacks = {
+		[Enums.ActionType.M1] = function(_actionType, inputState)
+			if inputState == Enum.UserInputState.Begin then
+				self:_HandleLightAttack()
+			end
+		end,
+		
+		[Enums.ActionType.M2] = function(_actionType, inputState)
+			if inputState == Enum.UserInputState.Begin then
+				self:_HandleStrongAttack()
+			end
+		end,
+		
+		[Enums.ActionType.Q] = function(_actionType, inputState, _inputObject, direction)
+			DebugLogger.ClientAction("Dash callback", string.format("State: %s, Direction: %s", tostring(inputState), direction))
+			if inputState == Enum.UserInputState.Begin then
+				self:_HandleDash(direction)
+			end
+		end,
+		
+		[Enums.ActionType.C] = function(_actionType, inputState, _inputObject, direction)
+			DebugLogger.ClientAction("Slide callback", string.format("State: %s, Direction: %s", tostring(inputState), direction))
+			if inputState == Enum.UserInputState.Begin then
+				self:_HandleSlide(direction)
+			end
+		end,
+		
+		[Enums.ActionType.F] = function(_actionType, inputState)
+			if inputState == Enum.UserInputState.Begin then
+				self:_HandleBlockStart()
+			elseif inputState == Enum.UserInputState.End then
+				self:_HandleBlockEnd()
+			end
+		end,
+	}
 	
-	-- M2 - Strong Attack (Instant)
-	self._inputHandler:RegisterCallback(Enums.ActionType.M2, function(_actionType, inputState, _inputObject, _direction)
-		if inputState == Enum.UserInputState.Begin then
-			self:_HandleStrongAttack()
-		end
-	end)
-	
-	-- Q - Dash
-	self._inputHandler:RegisterCallback(Enums.ActionType.Q, function(_actionType, inputState, _inputObject, direction)
-		DebugLogger.ClientAction("Dash callback", string.format("State: %s, Direction: %s", tostring(inputState), direction))
-		if inputState == Enum.UserInputState.Begin then
-			self:_HandleDash(direction)
-		end
-	end)
-	
-	-- C - Slide
-	self._inputHandler:RegisterCallback(Enums.ActionType.C, function(_actionType, inputState, _inputObject, direction)
-		DebugLogger.ClientAction("Slide callback", string.format("State: %s, Direction: %s", tostring(inputState), direction))
-		if inputState == Enum.UserInputState.Begin then
-			self:_HandleSlide(direction)
-		end
-	end)
-	
-	-- F - Block
-	self._inputHandler:RegisterCallback(Enums.ActionType.F, function(_actionType, inputState, _inputObject)
-		if inputState == Enum.UserInputState.Begin then
-			self:_HandleBlockStart()
-		elseif inputState == Enum.UserInputState.End then
-			self:_HandleBlockEnd()
-		end
-	end)
+	for actionType, callback in pairs(inputCallbacks) do
+		self._inputHandler:RegisterCallback(actionType, callback)
+	end
 	
 	Logger:Debug("Input callbacks registered")
 end
@@ -327,16 +351,32 @@ end
 -- ACTION HANDLERS
 -- ========================================
 
+-- Helper: Cancel active movement (Dash/Slide) if any
+function CombatController:_CancelActiveMovement()
+	local wasDashing = self._currentState == Enums.CombatState.Dashing
+	local wasSliding = self._currentState == Enums.CombatState.Sliding
+	
+	if wasDashing then
+		DebugLogger.ClientAction("Movement", "Cancelled Dash")
+		self._movementController:StopMovement()
+		self._networkManager:SendToServer(Enums.NetworkEvent.CancelDash, {})
+		return true
+	elseif wasSliding then
+		DebugLogger.ClientAction("Movement", "Cancelled Slide")
+		self._movementController:StopMovement()
+		self._networkManager:SendToServer(Enums.NetworkEvent.CancelSlide, {})
+		return true
+	end
+	
+	return false
+end
+
 function CombatController:_HandleLightAttack()
 	-- Check if can attack
 	if not self:_CanPerformAction(Enums.ActionType.M1) then
 		self._inputBuffering:AddInput(Enums.ActionType.M1)
 		return
 	end
-	
-	-- Store if we were dashing/sliding for cleanup after attack
-	local wasDashing = self._currentState == Enums.CombatState.Dashing
-	local wasSliding = self._currentState == Enums.CombatState.Sliding
 	
 	-- Check combo window
 	local timeSinceLastAttack = os.clock() - self._lastAttackTime
@@ -365,15 +405,7 @@ function CombatController:_HandleLightAttack()
 	})
 	
 	-- Cancel movement AFTER sending attack for instant hit detection
-	if wasDashing then
-		DebugLogger.ClientAction("M1", "Cancelled Dash")
-		self:_StopClientDash()
-		self._networkManager:SendToServer(Enums.NetworkEvent.CancelDash, {})
-	elseif wasSliding then
-		DebugLogger.ClientAction("M1", "Cancelled Slide")
-		self:_StopClientSlide()
-		self._networkManager:SendToServer(Enums.NetworkEvent.CancelSlide, {})
-	end
+	self:_CancelActiveMovement()
 	
 	Logger:Debug("Light attack requested", {combo = self._comboCount})
 end
@@ -386,18 +418,14 @@ function CombatController:_HandleStrongAttack()
 		return
 	end
 	
-	-- Store if we were dashing/sliding for cleanup after attack
-	local wasDashing = self._currentState == Enums.CombatState.Dashing
-	local wasSliding = self._currentState == Enums.CombatState.Sliding
-	
 	-- Update state FIRST for instant attack
 	self._stateManager:HandleStrongAttackState()
 	-- Cooldown activates IMMEDIATELY (regardless of hit/miss)
 	self._cooldowns[Enums.ActionType.M2] = os.clock()
 	self._comboCount = 0 -- Reset combo
 	
-	-- Apply M2 visual effect (red body + white outline)
-	self:_ApplyM2ChargeEffect()
+	-- Apply M2 visual effect
+	self._visualEffects:ApplyStrongAttackEffect()
 	
 	-- Play animation locally
 	if self._animationManager then
@@ -411,15 +439,7 @@ function CombatController:_HandleStrongAttack()
 	})
 	
 	-- Cancel movement AFTER sending attack for instant hit detection
-	if wasDashing then
-		DebugLogger.ClientAction("M2", "Cancelled Dash")
-		self:_StopClientDash()
-		self._networkManager:SendToServer(Enums.NetworkEvent.CancelDash, {})
-	elseif wasSliding then
-		DebugLogger.ClientAction("M2", "Cancelled Slide")
-		self:_StopClientSlide()
-		self._networkManager:SendToServer(Enums.NetworkEvent.CancelSlide, {})
-	end
+	self:_CancelActiveMovement()
 	
 	Logger:Debug("Strong attack requested")
 end
@@ -446,8 +466,12 @@ function CombatController:_HandleDash(direction: string)
 		Direction = direction,
 	})
 	
-	-- Start client-side dynamic movement with real-time WASD control
-	self:_StartClientDash()
+	-- Start client-side dynamic movement
+	self._movementController:StartDynamicMovement("Dash", {
+		Speed = Config.Dash.Speed,
+		Duration = Config.Dash.Duration,
+		FrictionMultiplier = Config.Dash.FrictionMultiplier,
+	})
 	
 	Logger:Debug("Dash requested", {direction = direction})
 end
@@ -475,8 +499,12 @@ function CombatController:_HandleSlide(direction: string)
 		Direction = direction,
 	})
 	
-	-- Start client-side dynamic movement with real-time WASD control
-	self:_StartClientSlide()
+	-- Start client-side dynamic movement
+	self._movementController:StartDynamicMovement("Slide", {
+		Speed = Config.Slide.Speed,
+		Duration = Config.Slide.Duration,
+		FrictionMultiplier = Config.Slide.FrictionMultiplier,
+	})
 	
 	Logger:Debug("Slide requested")
 end
@@ -525,7 +553,24 @@ end
 -- SERVER CALLBACKS
 -- ========================================
 
-function CombatController:_OnServerStateChanged(newState: string)
+function CombatController:_OnServerStateChanged(stateData)
+	-- Extract state from data (server sends {State = string})
+	local newState = stateData
+	if type(stateData) == "table" then
+		newState = stateData.State
+	end
+	
+	-- Validate that newState is a string
+	if type(newState) ~= "string" then
+		Logger:Error("Server sent invalid state", {
+			dataType = type(stateData),
+			stateType = type(newState),
+			data = tostring(stateData)
+		})
+		return
+	end
+	
+	-- Server has authority - bypass validation and set directly
 	self._currentState = newState
 	Logger:Debug("State changed by server", {state = newState})
 	
@@ -544,8 +589,8 @@ function CombatController:_OnActionResult(result: {[string]: any})
 	if not success then
 		Logger:Warning("Action rejected by server", {error = errorCode})
 		
-		-- Reset state on failure
-		self._currentState = Enums.CombatState.Idle
+		-- Reset state on failure using StateManager
+		self._stateManager:SetState(Enums.CombatState.Idle, "action_rejected")
 	end
 end
 
@@ -592,35 +637,28 @@ function CombatController:_CanPerformAction(actionType: string): boolean
 		return false
 	end
 	
+	-- Validate currentState type (debug protection)
+	if type(self._currentState) ~= "string" then
+		Logger:Error("_currentState is not a string!", {
+			stateType = type(self._currentState),
+			state = tostring(self._currentState),
+			actionType = actionType
+		})
+		-- Force reset to Idle
+		self._currentState = Enums.CombatState.Idle
+	end
+	
 	-- Check state
 	if self._currentState == Enums.CombatState.Stunned or self._currentState == Enums.CombatState.Dead then
-		DebugLogger.ClientValidationFailed(actionType, string.format("Invalid state: %s", tostring(self._currentState)))
+		DebugLogger.ClientValidationFailed(actionType, string.format("Invalid state: %s", self._currentState))
 		return false
 	end
 	
-	-- Check if already performing action (except block and M1 during combo)
-	if actionType == Enums.ActionType.M1 then
-		-- M1 can be used during Attacking state for combos, and can CANCEL Dash/Slide
-		if self._currentState ~= Enums.CombatState.Idle 
-			and self._currentState ~= Enums.CombatState.Attacking 
-			and self._currentState ~= Enums.CombatState.Dashing
-			and self._currentState ~= Enums.CombatState.Sliding then
-			DebugLogger.ClientValidationFailed("M1", string.format("Invalid state: %s", tostring(self._currentState)))
-			return false
-		end
-	elseif actionType == Enums.ActionType.M2 then
-		-- M2 can CANCEL Dash/Slide
-		if self._currentState ~= Enums.CombatState.Idle 
-			and self._currentState ~= Enums.CombatState.Dashing
-			and self._currentState ~= Enums.CombatState.Sliding then
-			DebugLogger.ClientValidationFailed("M2", string.format("Invalid state: %s", tostring(self._currentState)))
-			return false
-		end
-	elseif actionType ~= Enums.ActionType.F then
-		if self._currentState ~= Enums.CombatState.Idle and self._currentState ~= Enums.CombatState.Blocking then
-			DebugLogger.ClientValidationFailed(actionType, string.format("Invalid state: %s", tostring(self._currentState)))
-			return false
-		end
+	-- Check if action is allowed in current state (using lookup table)
+	local validStates = VALID_ACTION_STATES[actionType]
+	if validStates and not validStates[self._currentState] then
+		DebugLogger.ClientValidationFailed(actionType, string.format("Invalid state: %s", self._currentState))
+		return false
 	end
 	
 	-- Check cooldown
@@ -635,18 +673,8 @@ function CombatController:_CanPerformAction(actionType: string): boolean
 end
 
 function CombatController:_GetCooldownForAction(actionType: string): number
-	if actionType == Enums.ActionType.M1 then
-		return Config.LightAttack.Cooldown
-	elseif actionType == Enums.ActionType.M2 then
-		return Config.StrongAttack.Cooldown
-	elseif actionType == Enums.ActionType.Q then
-		return Config.Dash.Cooldown
-	elseif actionType == Enums.ActionType.C then
-		return Config.Slide.Cooldown
-	elseif actionType == Enums.ActionType.F then
-		return Config.Block.Cooldown
-	end
-	return 0
+	local cooldownGetter = COOLDOWN_CONFIGS[actionType]
+	return cooldownGetter and cooldownGetter() or 0
 end
 
 -- ========================================
@@ -698,7 +726,8 @@ end
 -- ========================================
 
 function CombatController:_ResetState()
-	self._currentState = Enums.CombatState.Idle
+	-- Reset state using StateManager
+	self._stateManager:SetState(Enums.CombatState.Idle, "reset")
 	self._comboCount = 0
 	self._lastAttackTime = 0
 	
@@ -714,321 +743,6 @@ function CombatController:_ResetState()
 	self._inputBuffering:ClearBuffer()
 	
 	Logger:Debug("State reset")
-end
-
--- ========================================
--- VISUAL EFFECTS
--- ========================================
-
--- Apply M2 charge visual effect (red body + white outline)
-function CombatController:_ApplyM2ChargeEffect()
-	local character = LocalPlayer.Character
-	if not character then return end
-	
-	-- Remove existing highlight if any
-	self:_RemoveM2ChargeEffect()
-	
-	-- Create Highlight effect
-	local highlight = Instance.new("Highlight")
-	highlight.Name = "M2ChargeEffect"
-	highlight.FillColor = Color3.fromRGB(255, 50, 50) -- Red body
-	highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- White outline
-	highlight.FillTransparency = 0.3 -- Slightly transparent red
-	highlight.OutlineTransparency = 0 -- Solid white outline
-	highlight.Adornee = character
-	highlight.Parent = character
-	
-	-- Auto-remove after M2 duration
-	task.delay(Config.StrongAttack.StunDuration + 0.3, function()
-		self:_RemoveM2ChargeEffect()
-	end)
-end
-
-function CombatController:_RemoveM2ChargeEffect()
-	local character = LocalPlayer.Character
-	if not character then return end
-	
-	local existingHighlight = character:FindFirstChild("M2ChargeEffect")
-	if existingHighlight then
-		existingHighlight:Destroy()
-	end
-end
-
--- ========================================
--- CLIENT-SIDE DYNAMIC MOVEMENT
--- ========================================
-
--- Get current WASD direction relative to camera
-function CombatController:_GetCurrentInputDirection(): Vector3?
-	local character = LocalPlayer.Character
-	if not character then return nil end
-	
-	local rootPart = Utility.GetRootPart(character)
-	if not rootPart then return nil end
-	
-	-- Get camera direction
-	local cameraLook = rootPart.CFrame.LookVector
-	local cameraRight = rootPart.CFrame.RightVector
-	
-	-- Detect WASD inputs
-	local moveVector = Vector3.zero
-	
-	if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-		moveVector = moveVector + cameraLook
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-		moveVector = moveVector - cameraLook
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-		moveVector = moveVector - cameraRight
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-		moveVector = moveVector + cameraRight
-	end
-	
-	if moveVector.Magnitude > 0 then
-		return moveVector.Unit
-	end
-	
-	-- Default: forward if no input
-	return cameraLook
-end
-
-function CombatController:_StartClientDash()
-	local character = LocalPlayer.Character
-	if not character then return end
-	
-	local rootPart = Utility.GetRootPart(character)
-	local humanoid = Utility.GetHumanoid(character)
-	if not rootPart or not humanoid then return end
-	
-	-- Cancel existing dash
-	self:_StopClientDash()
-	
-	-- Store initial direction from WASD
-	local initialDirection = self:_GetCurrentInputDirection()
-	if not initialDirection then
-		initialDirection = rootPart.CFrame.LookVector -- Default to looking direction
-	end
-	
-	-- Determine fixed direction type (front/back/left/right) from initial input
-	local camera = workspace.CurrentCamera
-	local cameraLook = camera.CFrame.LookVector
-	local cameraRight = camera.CFrame.RightVector
-	local dot = initialDirection:Dot(cameraLook)
-	local dotRight = initialDirection:Dot(cameraRight)
-	
-	local fixedDirection = "front"
-	if math.abs(dot) > math.abs(dotRight) then
-		fixedDirection = dot > 0 and "front" or "back"
-	else
-		fixedDirection = dotRight > 0 and "right" or "left"
-	end
-	
-	-- Disable humanoid movement
-	humanoid.AutoRotate = false
-	local originalWalkSpeed = humanoid.WalkSpeed
-	humanoid.WalkSpeed = 0
-	
-	-- Create BodyVelocity for optimized dash (lighter than LinearVelocity)
-	local bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
-	bodyVelocity.Parent = rootPart
-	
-	-- Dash parameters with friction (similar to Slide)
-	local dashStrength = Config.Dash.Speed
-	local rate = 0.01
-	local elapsed = 0
-	
-	-- Optimized loop with task.wait and friction
-	local running = true
-	self._activeDash = {
-		bodyVelocity = bodyVelocity,
-		humanoid = humanoid,
-		originalWalkSpeed = originalWalkSpeed,
-		running = running
-	}
-	
-	task.spawn(function()
-		while elapsed <= Config.Dash.Duration do
-			if not self._activeDash or not self._activeDash.running or not rootPart or not rootPart.Parent then
-				break
-			end
-			
-			-- Rotate character to match camera direction
-			local forwardVector = workspace.CurrentCamera.CFrame.LookVector
-			local targetRotation = math.atan2(forwardVector.X, forwardVector.Z) + math.pi
-			rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, targetRotation, 0)
-			
-			-- Apply velocity based on fixed direction with friction
-			if bodyVelocity and bodyVelocity.Parent then
-				local currentLook = rootPart.CFrame.LookVector
-				local currentRight = rootPart.CFrame.RightVector
-				local velocityDirection
-				
-				if fixedDirection == "front" then
-					velocityDirection = currentLook
-				elseif fixedDirection == "back" then
-					velocityDirection = -currentLook
-				elseif fixedDirection == "right" then
-					velocityDirection = currentRight
-				elseif fixedDirection == "left" then
-					velocityDirection = -currentRight
-				end
-				
-				-- Apply friction decay (smooth deceleration)
-				local progress = elapsed / Config.Dash.Duration
-				local frictionMultiplier = 1 - (progress * Config.Dash.FrictionMultiplier)
-				
-				bodyVelocity.Velocity = velocityDirection * dashStrength * frictionMultiplier
-			end
-			
-			elapsed = elapsed + rate
-			task.wait(rate)
-		end
-		
-		self:_StopClientDash()
-	end)
-	
-	DebugLogger.ClientAction("Dash", string.format("Started - Direction: %s", fixedDirection))
-end
-
-function CombatController:_StopClientDash()
-	if not self._activeDash then return end
-	
-	-- Stop loop
-	self._activeDash.running = false
-	
-	-- Cleanup
-	if self._activeDash.bodyVelocity and self._activeDash.bodyVelocity.Parent then
-		self._activeDash.bodyVelocity:Destroy()
-	end
-	
-	-- Restore humanoid
-	if self._activeDash.humanoid then
-		self._activeDash.humanoid.AutoRotate = true
-		self._activeDash.humanoid.WalkSpeed = self._activeDash.originalWalkSpeed
-	end
-	
-	self._activeDash = nil
-end
-
-function CombatController:_StartClientSlide()
-	local character = LocalPlayer.Character
-	if not character then return end
-	
-	local rootPart = Utility.GetRootPart(character)
-	local humanoid = Utility.GetHumanoid(character)
-	if not rootPart or not humanoid then return end
-	
-	-- Cancel existing slide
-	self:_StopClientSlide()
-	
-	-- Store initial direction from WASD
-	local initialDirection = self:_GetCurrentInputDirection()
-	if not initialDirection then
-		initialDirection = rootPart.CFrame.LookVector
-	end
-	
-	-- Determine fixed direction type from initial input
-	local camera = workspace.CurrentCamera
-	local cameraLook = camera.CFrame.LookVector
-	local cameraRight = camera.CFrame.RightVector
-	local dot = initialDirection:Dot(cameraLook)
-	local dotRight = initialDirection:Dot(cameraRight)
-	
-	local fixedDirection = "front"
-	if math.abs(dot) > math.abs(dotRight) then
-		fixedDirection = dot > 0 and "front" or "back"
-	else
-		fixedDirection = dotRight > 0 and "right" or "left"
-	end
-	
-	-- Disable humanoid movement
-	humanoid.AutoRotate = false
-	local originalWalkSpeed = humanoid.WalkSpeed
-	humanoid.WalkSpeed = 0
-	
-	-- Create BodyVelocity for optimized slide
-	local bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
-	bodyVelocity.Parent = rootPart
-	
-	-- Slide parameters with friction
-	local slideStrength = Config.Slide.Speed
-	local rate = 0.01
-	
-	local running = true
-	self._activeSlide = {
-		bodyVelocity = bodyVelocity,
-		humanoid = humanoid,
-		originalWalkSpeed = originalWalkSpeed,
-		running = running
-	}
-	
-	local elapsed = 0
-	task.spawn(function()
-		while elapsed <= Config.Slide.Duration do
-			if not self._activeSlide or not self._activeSlide.running or not rootPart or not rootPart.Parent then
-				break
-			end
-			
-			-- Rotate character to match camera direction
-			local forwardVector = workspace.CurrentCamera.CFrame.LookVector
-			local targetRotation = math.atan2(forwardVector.X, forwardVector.Z) + math.pi
-			rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, targetRotation, 0)
-			
-			-- Apply velocity with friction decay
-			if bodyVelocity and bodyVelocity.Parent then
-				local currentLook = rootPart.CFrame.LookVector
-				local currentRight = rootPart.CFrame.RightVector
-				local velocityDirection
-				
-				if fixedDirection == "front" then
-					velocityDirection = currentLook
-				elseif fixedDirection == "back" then
-					velocityDirection = -currentLook
-				elseif fixedDirection == "right" then
-					velocityDirection = currentRight
-				elseif fixedDirection == "left" then
-					velocityDirection = -currentRight
-				end
-				
-				-- Apply friction based on progress
-				local progress = elapsed / Config.Slide.Duration
-				local frictionMultiplier = 1 - (progress * Config.Slide.FrictionMultiplier)
-				
-				bodyVelocity.Velocity = velocityDirection * slideStrength * frictionMultiplier
-			end
-			
-			elapsed = elapsed + rate
-			task.wait(rate)
-		end
-		
-		self:_StopClientSlide()
-	end)
-	
-	DebugLogger.ClientAction("Slide", string.format("Started - Direction: %s", fixedDirection))
-end
-
-function CombatController:_StopClientSlide()
-	if not self._activeSlide then return end
-	
-	-- Stop loop
-	self._activeSlide.running = false
-	
-	-- Cleanup
-	if self._activeSlide.bodyVelocity and self._activeSlide.bodyVelocity.Parent then
-		self._activeSlide.bodyVelocity:Destroy()
-	end
-	
-	-- Restore humanoid
-	if self._activeSlide.humanoid then
-		self._activeSlide.humanoid.AutoRotate = true
-		self._activeSlide.humanoid.WalkSpeed = self._activeSlide.originalWalkSpeed
-	end
-	
-	self._activeSlide = nil
 end
 
 -- ========================================
@@ -1067,6 +781,18 @@ function CombatController:Destroy()
 	
 	if self._inputBuffering then
 		self._inputBuffering:Destroy()
+	end
+	
+	if self._stateManager then
+		self._stateManager:Destroy()
+	end
+	
+	if self._movementController then
+		self._movementController:Destroy()
+	end
+	
+	if self._visualEffects then
+		self._visualEffects:Destroy()
 	end
 	
 	if self._animationManager then

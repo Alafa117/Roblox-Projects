@@ -1,7 +1,7 @@
 --[[
 	Module: PlayerDataManager
 	Type: Server Data Manager
-	Location: ServerScriptService.CombatService.PlayerDataManager
+	Location: ServerScriptService.CombatHandler.PlayerDataManager
 	Path: src/server/CombatHandler/PlayerDataManager.luau
 	
 	Description:

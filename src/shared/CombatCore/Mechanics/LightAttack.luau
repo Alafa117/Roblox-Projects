@@ -187,8 +187,8 @@ end
 function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player | Model)
 	-- Get CombatService to apply damage
 	local ServerScriptService = game:GetService("ServerScriptService")
-	local Server = ServerScriptService:WaitForChild("Server")
-	local CombatService = require(Server:WaitForChild("CombatHandler"):WaitForChild("CombatService"))
+	local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
+	local CombatService = require(CombatHandler:WaitForChild("CombatService"))
 	local service = CombatService.GetInstance()
 	
 	-- Apply damage through service (handles blocking, invulnerability, etc.)
@@ -264,8 +264,8 @@ end
 
 function LightAttack:_ApplyStun(victim: Player, duration: number)
 	local ServerScriptService = game:GetService("ServerScriptService")
-	local Server = ServerScriptService:WaitForChild("Server")
-	local PlayerDataManager = require(Server:WaitForChild("CombatHandler"):WaitForChild("PlayerDataManager"))
+	local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
+	local PlayerDataManager = require(CombatHandler:WaitForChild("PlayerDataManager"))
 	local dataManager = PlayerDataManager.GetInstance()
 	
 	dataManager:SetStunned(victim, true, duration)

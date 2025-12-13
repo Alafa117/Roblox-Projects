@@ -1,7 +1,7 @@
 --[[
 	Module: StateManager
 	Type: Client State Management Module
-	Location: StarterPlayer.StarterPlayerScripts.CombatController.StateManager
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.StateManager
 	Path: src/client/CombatFramework/StateManager.luau
 	
 	Description:
@@ -28,6 +28,48 @@ local Logger = require(Core.Logger).GetInstance()
 local StateManager = {}
 StateManager.__index = StateManager
 
+-- Valid state transitions (from -> to)
+local VALID_TRANSITIONS = {
+	[Enums.CombatState.Idle] = {
+		[Enums.CombatState.Attacking] = true,
+		[Enums.CombatState.Dashing] = true,
+		[Enums.CombatState.Sliding] = true,
+		[Enums.CombatState.Blocking] = true,
+		[Enums.CombatState.Stunned] = true,
+		[Enums.CombatState.Dead] = true,
+	},
+	[Enums.CombatState.Attacking] = {
+		[Enums.CombatState.Attacking] = true, -- Combo chains
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Stunned] = true,
+		[Enums.CombatState.Dead] = true,
+	},
+	[Enums.CombatState.Dashing] = {
+		[Enums.CombatState.Attacking] = true, -- Cancel into attack
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Stunned] = true,
+		[Enums.CombatState.Dead] = true,
+	},
+	[Enums.CombatState.Sliding] = {
+		[Enums.CombatState.Attacking] = true, -- Cancel into attack
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Stunned] = true,
+		[Enums.CombatState.Dead] = true,
+	},
+	[Enums.CombatState.Blocking] = {
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Stunned] = true,
+		[Enums.CombatState.Dead] = true,
+	},
+	[Enums.CombatState.Stunned] = {
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Dead] = true,
+	},
+	[Enums.CombatState.Dead] = {
+		[Enums.CombatState.Idle] = true, -- Respawn
+	},
+}
+
 -- ========================================
 -- CONSTRUCTOR
 -- ========================================
@@ -49,6 +91,17 @@ end
 
 function StateManager:SetState(newState: string, actionType: string?)
 	local oldState = self._controller._currentState
+	
+	-- Validate transition
+	if not self:_IsValidTransition(oldState, newState) then
+		Logger:Warning("Invalid state transition blocked", {
+			from = oldState,
+			to = newState,
+			action = actionType or "manual"
+		})
+		return false
+	end
+	
 	self._controller._currentState = newState
 	
 	Logger:Debug("State changed", {
@@ -56,6 +109,24 @@ function StateManager:SetState(newState: string, actionType: string?)
 		to = newState,
 		action = actionType or "manual"
 	})
+	
+	return true
+end
+
+function StateManager:_IsValidTransition(fromState: string, toState: string): boolean
+	-- Allow same state (no transition)
+	if fromState == toState then
+		return true
+	end
+	
+	-- Check transition table
+	local validDestinations = VALID_TRANSITIONS[fromState]
+	if not validDestinations then
+		Logger:Warning("Unknown source state", {state = fromState})
+		return false
+	end
+	
+	return validDestinations[toState] == true
 end
 
 -- ========================================
@@ -85,7 +156,16 @@ function StateManager:_ResetStateIfMatches(actionType: string)
 	
 	-- Only reset if we're still in the expected state and not already Idle
 	if currentState == expectedState and currentState ~= Enums.CombatState.Idle then
-		self:SetState(Enums.CombatState.Idle, actionType)
+		local success = self:SetState(Enums.CombatState.Idle, actionType)
+		
+		-- If SetState failed validation, force reset (duration expired = must reset)
+		if not success then
+			Logger:Warning("Forced state reset after duration", {
+				from = currentState,
+				action = actionType
+			})
+			self._controller._currentState = Enums.CombatState.Idle
+		end
 	end
 end
 

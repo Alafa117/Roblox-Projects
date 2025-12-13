@@ -5,26 +5,21 @@
 
     "ReplicatedStorage": {
       "CombatCore": {
+        "$className": "Folder",
         "$path": "src/shared/CombatCore"
       }
     },
 
     "ServerScriptService": {
-      "Server": {
-        "$className": "Folder",
-        "CombatHandler": {
-          "$path": "src/server/CombatHandler"
-        }
+      "CombatHandler": {
+        "$path": "src/server/CombatHandler"
       }
     },
 
     "StarterPlayer": {
       "StarterPlayerScripts": {
-        "Client": {
-          "$className": "Folder",
-          "CombatFramework": {
-            "$path": "src/client/CombatFramework"
-          }
+        "CombatFramework": {
+          "$path": "src/client/CombatFramework"
         }
       }
     }

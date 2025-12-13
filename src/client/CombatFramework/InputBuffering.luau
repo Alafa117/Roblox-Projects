@@ -1,7 +1,7 @@
 --[[
 	Module: InputBuffering
 	Type: Client Utility Module
-	Location: StarterPlayer.StarterPlayerScripts.CombatController.InputBuffering
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.InputBuffering
 	Path: src/client/CombatFramework/InputBuffering.luau
 	
 	Description:

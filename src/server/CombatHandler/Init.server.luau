@@ -1,7 +1,7 @@
 --[[
 	Script: Init
 	Type: Server Initialization Script
-	Location: ServerScriptService.CombatService.Init
+	Location: ServerScriptService.CombatHandler.Init
 	Path: src/server/CombatHandler/Init.server.luau
 	
 	Description:

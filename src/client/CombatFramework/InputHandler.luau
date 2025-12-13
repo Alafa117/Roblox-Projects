@@ -1,7 +1,7 @@
 --[[
 	Module: InputHandler
 	Type: Client Controller Module
-	Location: StarterPlayer.StarterPlayerScripts.CombatController.InputHandler
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.InputHandler
 	Path: src/client/CombatFramework/InputHandler.luau
 	
 	Description:
@@ -224,13 +224,11 @@ function InputHandler:_TriggerAction(actionType: string, inputState: Enum.UserIn
 	-- Get movement direction for directional abilities
 	local movementDirection = self:_GetMovementDirection()
 	
-	-- Trigger all registered callbacks
+	-- Trigger all registered callbacks synchronously
 	local callbacks = self._callbacks[actionType]
 	if callbacks then
 		for _, callback in ipairs(callbacks) do
-			task.spawn(function()
-				callback(actionType, inputState, inputObject, movementDirection)
-			end)
+			callback(actionType, inputState, inputObject, movementDirection)
 		end
 	end
 	

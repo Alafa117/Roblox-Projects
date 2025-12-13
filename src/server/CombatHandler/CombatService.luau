@@ -1,7 +1,7 @@
 --[[
 	Module: CombatService
 	Type: Server Main Service
-	Location: ServerScriptService.CombatService.CombatService
+	Location: ServerScriptService.CombatHandler.CombatService
 	Path: src/server/CombatHandler/CombatService.luau
 	
 	Description:

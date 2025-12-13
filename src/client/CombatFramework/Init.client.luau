@@ -1,7 +1,7 @@
 --[[
 	Script: Init
 	Type: Client Initialization Script
-	Location: StarterPlayer.StarterPlayerScripts.CombatController.Init
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.Init
 	Path: src/client/CombatFramework/Init.client.luau
 	
 	Description:
