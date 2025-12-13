@@ -2,7 +2,7 @@
 	Module: StateManager
 	Type: Client State Management Module
 	Location: StarterPlayer.StarterPlayerScripts.CombatController.StateManager
-	Path: src/client/CombatController/StateManager.luau
+	Path: src/client/CombatFramework/StateManager.luau
 	
 	Description:
 		Manages combat state transitions and automatic state resets.
@@ -17,7 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Config = require(Core.Config)

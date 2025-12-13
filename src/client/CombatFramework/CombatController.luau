@@ -2,7 +2,7 @@
 	Module: CombatController
 	Type: Client Main Controller
 	Location: StarterPlayer.StarterPlayerScripts.CombatController.CombatController
-	Path: src/client/CombatController/CombatController.luau
+	Path: src/client/CombatFramework/CombatController.luau
 	
 	Description:
 		Main client-side controller for the Combat System.
@@ -11,8 +11,8 @@
 		Coordinates between InputHandler, AnimationManager, and network layer.
 	
 	Dependencies:
-		- ReplicatedStorage.Combat_System.Core (Config, Enums, Types, Logger, Utility)
-		- ReplicatedStorage.Combat_System.Network.NetworkManager
+		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger, Utility)
+		- ReplicatedStorage.CombatCore.Network.NetworkManager
 		- CombatController.InputHandler
 		- CombatController.InputBuffering
 	
@@ -28,7 +28,7 @@ local UserInputService = game:GetService("UserInputService")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Config = require(Core.Config)
@@ -594,7 +594,7 @@ function CombatController:_CanPerformAction(actionType: string): boolean
 	
 	-- Check state
 	if self._currentState == Enums.CombatState.Stunned or self._currentState == Enums.CombatState.Dead then
-		DebugLogger.ClientValidationFailed(actionType, string.format("Invalid state: %s", self._currentState))
+		DebugLogger.ClientValidationFailed(actionType, string.format("Invalid state: %s", tostring(self._currentState)))
 		return false
 	end
 	
@@ -605,7 +605,7 @@ function CombatController:_CanPerformAction(actionType: string): boolean
 			and self._currentState ~= Enums.CombatState.Attacking 
 			and self._currentState ~= Enums.CombatState.Dashing
 			and self._currentState ~= Enums.CombatState.Sliding then
-			DebugLogger.ClientValidationFailed("M1", string.format("Invalid state: %s", self._currentState))
+			DebugLogger.ClientValidationFailed("M1", string.format("Invalid state: %s", tostring(self._currentState)))
 			return false
 		end
 	elseif actionType == Enums.ActionType.M2 then
@@ -613,7 +613,7 @@ function CombatController:_CanPerformAction(actionType: string): boolean
 		if self._currentState ~= Enums.CombatState.Idle 
 			and self._currentState ~= Enums.CombatState.Dashing
 			and self._currentState ~= Enums.CombatState.Sliding then
-			DebugLogger.ClientValidationFailed("M2", string.format("Invalid state: %s", self._currentState))
+			DebugLogger.ClientValidationFailed("M2", string.format("Invalid state: %s", tostring(self._currentState)))
 			return false
 		end
 	elseif actionType ~= Enums.ActionType.F then

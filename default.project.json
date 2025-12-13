@@ -4,21 +4,27 @@
     "$className": "DataModel",
 
     "ReplicatedStorage": {
-      "Combat_System": {
-        "$path": "src/shared/Combat_System"
+      "CombatCore": {
+        "$path": "src/shared/CombatCore"
       }
     },
 
     "ServerScriptService": {
       "Server": {
-        "$path": "src/server"
+        "$className": "Folder",
+        "CombatHandler": {
+          "$path": "src/server/CombatHandler"
+        }
       }
     },
 
     "StarterPlayer": {
       "StarterPlayerScripts": {
         "Client": {
-          "$path": "src/client"
+          "$className": "Folder",
+          "CombatFramework": {
+            "$path": "src/client/CombatFramework"
+          }
         }
       }
     }

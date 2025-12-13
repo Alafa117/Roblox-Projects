@@ -2,7 +2,7 @@
 	Script: Init
 	Type: Client Initialization Script
 	Location: StarterPlayer.StarterPlayerScripts.CombatController.Init
-	Path: src/client/CombatController/Init.client.luau
+	Path: src/client/CombatFramework/Init.client.luau
 	
 	Description:
 		Entry point for the client-side Combat System.
@@ -18,7 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Logger = require(Core.Logger).GetInstance()

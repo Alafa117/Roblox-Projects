@@ -16,17 +16,17 @@ The Combat System is already integrated into your project structure. All files a
 
 ```
 ReplicatedStorage/
-└── Combat_System/
+└── CombatCore/
     ├── Core/           (Config, Types, Enums, Logger, Utility)
     ├── Animations/     (AnimationManager)
     ├── Mechanics/      (LightAttack, StrongAttack, Dash, Slide, Block)
     └── Network/        (NetworkManager)
 
 ServerScriptService/
-└── CombatService/      (CombatService, PlayerDataManager, Init.server)
+└── CombatHandler/      (CombatService, PlayerDataManager, Init.server)
 
 StarterPlayer/StarterPlayerScripts/
-└── CombatController/   (CombatController, InputHandler, InputBuffering, Init.client)
+└── CombatFramework/    (CombatController, InputHandler, InputBuffering, Init.client)
 ```
 
 **No additional setup required** - The system will initialize automatically when you start the game.
@@ -37,7 +37,7 @@ StarterPlayer/StarterPlayerScripts/
 
 ### Step 1: Configure Combat Parameters
 
-Edit `src/shared/Combat_System/Core/Config.luau`:
+Edit `src/shared/CombatCore/Core/Config.luau`:
 
 ```lua
 -- Example: Modify Light Attack
@@ -80,7 +80,7 @@ CombatConfig.System = {
 
 ### Step 2: Configure Animation IDs
 
-Edit `src/shared/Combat_System/Core/Config.luau`:
+Edit `src/shared/CombatCore/Core/Config.luau`:
 
 ```lua
 CombatConfig.Animations = {
@@ -185,7 +185,7 @@ The Logger system tracks all events:
 
 ```lua
 -- Get logger instance
-local Logger = require(game.ReplicatedStorage.Combat_System.Core.Logger).GetInstance()
+local Logger = require(game.ReplicatedStorage.CombatCore.Core.Logger).GetInstance()
 
 -- View log history
 local logs = Logger:GetHistory()
@@ -207,7 +207,7 @@ local errors = Logger:GetHistory(4) -- 4 = Error level
 - ✅ Check Output for initialization messages
 - ✅ Verify character is R6 (system designed for R6)
 - ✅ Check that you're not in a blocked state (stunned/dead)
-- ✅ Verify RemoteEvents exist in ReplicatedStorage.Combat_System.Network
+- ✅ Verify RemoteEvents exist in ReplicatedStorage.CombatCore.Network
 
 **Issue: Animations don't play**
 - ✅ Verify animation IDs are correct (not rbxassetid://0)
@@ -304,7 +304,7 @@ dataManager:SetBlocking(player, true)
 ### Logger API
 
 ```lua
-local Logger = require(game.ReplicatedStorage.Combat_System.Core.Logger).GetInstance()
+local Logger = require(game.ReplicatedStorage.CombatCore.Core.Logger).GetInstance()
 
 -- Log at different levels
 Logger:Debug("Debug message", {data = "value"})

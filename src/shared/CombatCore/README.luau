@@ -1,8 +1,8 @@
 --[[
 	Module: README
 	Type: Documentation Module
-	Location: ReplicatedStorage.Combat_System.README
-	Path: src/shared/Combat_System/README.luau
+	Location: ReplicatedStorage.CombatCore.README
+	Path: src/shared/CombatCore/README.luau
 	
 	Description:
 		Quick reference documentation for the Combat System.
@@ -40,7 +40,7 @@ CONTROLS:
 - F (Hold): Block
 
 DOCUMENTATION:
-See COMBAT_SYSTEM_GUIDE.md for full setup instructions.
+See CombatCore_GUIDE.md for full setup instructions.
 ]]
 
 README.ARCHITECTURE = [[
@@ -69,7 +69,7 @@ Shared:
 README.CONFIGURATION = [[
 QUICK CONFIGURATION:
 
-1. Edit Config.luau in Combat_System/Core/Config
+1. Edit Config.luau in CombatCore/Core/Config
 2. Replace animation IDs (search for "rbxassetid://0")
 3. Adjust damage, cooldowns, ranges as needed
 4. Enable debug mode for testing:
@@ -101,7 +101,7 @@ DEBUGGING TIPS:
    - _G.CombatService (server)
 
 5. View logs:
-   local Logger = require(game.ReplicatedStorage.Combat_System.Core.Logger).GetInstance()
+   local Logger = require(game.ReplicatedStorage.CombatCore.Core.Logger).GetInstance()
    print(Logger:GetHistory())
 
 6. Check player data (server):
@@ -139,7 +139,7 @@ dataManager:SetStunned(player, true, 2.0)
 dataManager:SetInvulnerable(player, true)
 
 -- Access logs
-local Logger = require(game.ReplicatedStorage.Combat_System.Core.Logger).GetInstance()
+local Logger = require(game.ReplicatedStorage.CombatCore.Core.Logger).GetInstance()
 local errors = Logger:GetHistory(4)  -- Errors only
 ]]
 
@@ -148,7 +148,7 @@ EXTENDING THE COMBAT SYSTEM:
 
 To add a new combat mechanic:
 
-1. Create new module in Combat_System/Mechanics/
+1. Create new module in CombatCore/Mechanics/
 2. Follow pattern from existing mechanics (LightAttack, etc.)
 3. Implement Execute() and Validate() methods
 4. Add configuration to Config.luau

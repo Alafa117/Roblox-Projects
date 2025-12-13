@@ -2,7 +2,7 @@
 	Script: Init
 	Type: Server Initialization Script
 	Location: ServerScriptService.CombatService.Init
-	Path: src/server/CombatService/Init.server.luau
+	Path: src/server/CombatHandler/Init.server.luau
 	
 	Description:
 		Entry point for the server-side Combat System.
@@ -18,7 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Logger = require(Core.Logger).GetInstance()

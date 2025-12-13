@@ -1,8 +1,8 @@
 --[[
 	Module: CombatLogger
 	Type: Utility Module
-	Location: ReplicatedStorage.Combat_System.Core.Logger
-	Path: src/shared/Combat_System/Core/Logger.luau
+	Location: ReplicatedStorage.CombatCore.Core.Logger
+	Path: src/shared/CombatCore/Core/Logger.luau
 	
 	Description:
 		Advanced logging system for the Combat System.
@@ -10,7 +10,7 @@
 		Supports filtering, flushing, and performance-optimized batch logging.
 	
 	Usage:
-		local Logger = require(RS.Combat_System.Core.Logger)
+		local Logger = require(RS.CombatCore.Core.Logger)
 		Logger:Debug("Player attacked", {player = player.Name, damage = 10})
 		Logger:Error("Invalid state", {state = "Unknown"})
 	
@@ -98,10 +98,6 @@ end
 
 function Logger:Warning(message: string, context: {[string]: any}?)
 	self:_Log(Enums.LogLevel.Warning, message, context)
-end
-
-function Logger:Warn(message: string, context: {[string]: any}?)
-	self:Warning(message, context)
 end
 
 function Logger:Error(message: string, context: {[string]: any}?)

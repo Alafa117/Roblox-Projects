@@ -1,8 +1,8 @@
 --[[
 	Module: CombatEnums
 	Type: Enumeration Module
-	Location: ReplicatedStorage.Combat_System.Core.Enums
-	Path: src/shared/Combat_System/Core/Enums.luau
+	Location: ReplicatedStorage.CombatCore.Core.Enums
+	Path: src/shared/CombatCore/Core/Enums.luau
 	
 	Description:
 		Centralized enumerations for the Combat System.

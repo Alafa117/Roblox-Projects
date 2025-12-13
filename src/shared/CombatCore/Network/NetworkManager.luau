@@ -1,8 +1,8 @@
 --[[
 	Module: NetworkManager
 	Type: Shared Network Manager
-	Location: ReplicatedStorage.Combat_System.Network.NetworkManager
-	Path: src/shared/Combat_System/Network/NetworkManager.luau
+	Location: ReplicatedStorage.CombatCore.Network.NetworkManager
+	Path: src/shared/CombatCore/Network/NetworkManager.luau
 	
 	Description:
 		Centralized network communication manager for the Combat System.
@@ -11,7 +11,7 @@
 		Provides separate client and server instances for proper encapsulation.
 	
 	Dependencies:
-		- ReplicatedStorage.Combat_System.Core (Enums, Types, Logger)
+		- ReplicatedStorage.CombatCore.Core (Enums, Types, Logger)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
@@ -24,7 +24,7 @@ local RunService = game:GetService("RunService")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Enums = require(Core.Enums)
@@ -370,30 +370,6 @@ function NetworkManager:SendToServer(eventType: string, data: {[string]: any}?)
 	self._remoteEvent:FireServer(eventType, data)
 	
 	Logger:Debug("Sent to server", {event = eventType})
-end
-
-function NetworkManager:InvokeServer(eventType: string, data: {[string]: any}?): any
-	if not self._isClient then
-		Logger:Warning("InvokeServer can only be called on client")
-		return nil
-	end
-	
-	if not self._remoteFunction then
-		Logger:Error("RemoteFunction not initialized")
-		return nil
-	end
-	
-	local success, result = pcall(function()
-		return self._remoteFunction:InvokeServer(eventType, data)
-	end)
-	
-	if success then
-		Logger:Debug("Invoked server", {event = eventType})
-		return result
-	else
-		Logger:Error("InvokeServer failed", {event = eventType, error = result})
-		return nil
-	end
 end
 
 -- ========================================

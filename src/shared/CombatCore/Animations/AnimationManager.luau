@@ -1,8 +1,8 @@
 --[[
 	Module: AnimationManager
 	Type: Shared Animation Manager
-	Location: ReplicatedStorage.Combat_System.Animations.AnimationManager
-	Path: src/shared/Combat_System/Animations/AnimationManager.luau
+	Location: ReplicatedStorage.CombatCore.Animations.AnimationManager
+	Path: src/shared/CombatCore/Animations/AnimationManager.luau
 	
 	Description:
 		Manages all combat animations for characters.
@@ -11,7 +11,7 @@
 		Optimized for R6 avatars with track management and cleanup.
 	
 	Dependencies:
-		- ReplicatedStorage.Combat_System.Core (Config, Enums, Logger)
+		- ReplicatedStorage.CombatCore.Core (Config, Enums, Logger)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
@@ -22,7 +22,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Config = require(Core.Config)
@@ -243,11 +243,6 @@ function AnimationManager:PlayBlockAnimation(isBlocking: boolean)
 	end
 end
 
-function AnimationManager:PlayBlockBreakAnimation()
-	self:_StopAnimation("Block_Hold")
-	self:_PlayAnimation("Block_Break")
-end
-
 function AnimationManager:PlayDashAnimation(direction: string)
 	local key = string.format("Dash_%s", direction)
 	self:_PlayAnimation(key)
@@ -335,30 +330,11 @@ function AnimationManager:_GetAnimationTrack(key: string): AnimationTrack?
 end
 
 -- ========================================
--- ANIMATION CONTROL
--- ========================================
-
-function AnimationManager:StopAllAnimations(fadeTime: number?)
-	for key, animInfo in pairs(self._loadedAnimations) do
-		if animInfo.IsPlaying then
-			self:_StopAnimation(key, fadeTime)
-		end
-	end
-	
-	self._currentTrack = nil
-	
-	Logger:Debug("All animations stopped")
-end
-
--- ========================================
 -- CLEANUP
 -- ========================================
 
 function AnimationManager:Destroy()
-	-- Stop all animations
-	self:StopAllAnimations(0)
-	
-	-- Destroy all tracks
+	-- Stop and destroy all tracks
 	for _key, animInfo in pairs(self._loadedAnimations) do
 		if animInfo.Track then
 			animInfo.Track:Destroy()

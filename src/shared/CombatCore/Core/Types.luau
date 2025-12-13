@@ -1,8 +1,8 @@
 --[[
 	Module: CombatTypes
 	Type: Type Definitions Module
-	Location: ReplicatedStorage.Combat_System.Core.Types
-	Path: src/shared/Combat_System/Core/Types.luau
+	Location: ReplicatedStorage.CombatCore.Core.Types
+	Path: src/shared/CombatCore/Core/Types.luau
 	
 	Description:
 		Centralized type definitions for the Combat System.
@@ -114,55 +114,6 @@ export type LoggerConfig = {
 	EnableTimestamp: boolean,
 	EnableStackTrace: boolean,
 	OutputToConsole: boolean,
-}
-
--- ========================================
--- COMBAT CONFIG SECTIONS
--- ========================================
-
-export type LightAttackConfig = {
-	Damage: number,
-	Cooldown: number,
-	ComboWindow: number,
-	MaxComboCount: number,
-	Range: number,
-	HitboxSize: Vector3,
-	Knockback: number,
-	StunDuration: number,
-}
-
-export type StrongAttackConfig = {
-	Damage: number,
-	Cooldown: number,
-	Range: number,
-	HitboxSize: Vector3,
-	Knockback: number,
-	StunDuration: number,
-}
-
-export type BlockConfig = {
-	DamageReduction: number,
-	Cooldown: number,
-	MaxBlockDuration: number,
-	BlockBreakStunDuration: number,
-	PerfectBlockWindow: number,
-	PerfectBlockReduction: number,
-}
-
-export type DashConfig = {
-	Speed: number,
-	Duration: number,
-	Cooldown: number,
-	Distance: number,
-	InvulnerabilityFrames: number,
-}
-
-export type SlideConfig = {
-	Speed: number,
-	Duration: number,
-	Cooldown: number,
-	Distance: number,
-	FrictionMultiplier: number,
 }
 
 return {}

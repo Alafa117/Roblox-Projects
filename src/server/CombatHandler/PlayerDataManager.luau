@@ -2,7 +2,7 @@
 	Module: PlayerDataManager
 	Type: Server Data Manager
 	Location: ServerScriptService.CombatService.PlayerDataManager
-	Path: src/server/CombatService/PlayerDataManager.luau
+	Path: src/server/CombatHandler/PlayerDataManager.luau
 	
 	Description:
 		Manages combat-related data for all players on the server.
@@ -11,7 +11,7 @@
 		Implements data cleanup on player leave.
 	
 	Dependencies:
-		- ReplicatedStorage.Combat_System.Core (Types, Enums, Logger)
+		- ReplicatedStorage.CombatCore.Core (Types, Enums, Logger)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
@@ -22,7 +22,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Types = require(Core.Types)
@@ -391,16 +391,6 @@ function PlayerDataManager:ValidatePlayerData(player: Player): boolean
 	end
 	
 	return true
-end
-
--- ========================================
--- CLEANUP
--- ========================================
-
-function PlayerDataManager:Cleanup()
-	table.clear(self._playerData)
-	
-	Logger:Info("PlayerDataManager cleaned up")
 end
 
 return PlayerDataManager

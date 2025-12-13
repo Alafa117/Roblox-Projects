@@ -1,8 +1,8 @@
 --[[
 	Module: StrongAttack
 	Type: Combat Mechanic Module (Server)
-	Location: ReplicatedStorage.Combat_System.Mechanics.StrongAttack
-	Path: src/shared/Combat_System/Mechanics/StrongAttack.luau
+	Location: ReplicatedStorage.CombatCore.Mechanics.StrongAttack
+	Path: src/shared/CombatCore/Mechanics/StrongAttack.luau
 	
 	Description:
 		Implements the Strong Attack (M2) combat mechanic.
@@ -11,7 +11,7 @@
 		Applies significant knockback and longer stun duration.
 	
 	Dependencies:
-		- ReplicatedStorage.Combat_System.Core (Config, Enums, Types, Logger, Utility)
+		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger, Utility)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
@@ -23,7 +23,7 @@ local RunService = game:GetService("RunService")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Config = require(Core.Config)
@@ -175,7 +175,7 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 	-- Get CombatService to apply damage
 	local ServerScriptService = game:GetService("ServerScriptService")
 	local Server = ServerScriptService:WaitForChild("Server")
-	local CombatService = require(Server:WaitForChild("CombatService"):WaitForChild("CombatService"))
+	local CombatService = require(Server:WaitForChild("CombatHandler"):WaitForChild("CombatService"))
 	local service = CombatService.GetInstance()
 	
 	-- Apply damage through service
@@ -263,7 +263,7 @@ end
 function StrongAttack:_ApplyStun(victim: Player, duration: number)
 	local ServerScriptService = game:GetService("ServerScriptService")
 	local Server = ServerScriptService:WaitForChild("Server")
-	local PlayerDataManager = require(Server:WaitForChild("CombatService"):WaitForChild("PlayerDataManager"))
+	local PlayerDataManager = require(Server:WaitForChild("CombatHandler"):WaitForChild("PlayerDataManager"))
 	local dataManager = PlayerDataManager.GetInstance()
 	
 	dataManager:SetStunned(victim, true, duration)
@@ -277,7 +277,7 @@ end
 function StrongAttack:_BreakBlock(victim: Player)
 	local ServerScriptService = game:GetService("ServerScriptService")
 	local Server = ServerScriptService:WaitForChild("Server")
-	local PlayerDataManager = require(Server:WaitForChild("CombatService"):WaitForChild("PlayerDataManager"))
+	local PlayerDataManager = require(Server:WaitForChild("CombatHandler"):WaitForChild("PlayerDataManager"))
 	local dataManager = PlayerDataManager.GetInstance()
 	
 	-- Force end blocking

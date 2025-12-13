@@ -1,8 +1,8 @@
 --[[
 	Module: PhysicsHelper
 	Type: Physics Utility Module
-	Location: ReplicatedStorage.Combat_System.Core.PhysicsHelper
-	Path: src/shared/Combat_System/Core/PhysicsHelper.luau
+	Location: ReplicatedStorage.CombatCore.Core.PhysicsHelper
+	Path: src/shared/CombatCore/Core/PhysicsHelper.luau
 	
 	Description:
 		Handles all physics-related operations like knockback and ragdoll.

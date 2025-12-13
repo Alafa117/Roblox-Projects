@@ -1,8 +1,8 @@
 --[[
 	Module: CombatUtility
 	Type: Utility Module (Legacy Wrapper)
-	Location: ReplicatedStorage.Combat_System.Core.Utility
-	Path: src/shared/Combat_System/Core/Utility.luau
+	Location: ReplicatedStorage.CombatCore.Core.Utility
+	Path: src/shared/CombatCore/Core/Utility.luau
 	
 	Description:
 		Centralized utility module for combat system operations.
@@ -163,63 +163,6 @@ end
 
 function Utility.ApplyRagdoll(character: Model, duration: number)
 	PhysicsHelper.ApplyRagdoll(character, duration)
-end
-
--- ========================================
--- TABLE UTILITIES
--- ========================================
-
--- Debounce function
-function Utility.Debounce(duration: number): () -> boolean
-	local lastCall = 0
-	
-	return function(): boolean
-		local now = os.clock()
-		if now - lastCall >= duration then
-			lastCall = now
-			return true
-		end
-		return false
-	end
-end
-
--- Throttle function
-function Utility.Throttle(callback: (...any) -> (), duration: number): (...any) -> ()
-	local lastCall = 0
-	local scheduled = false
-	
-	return function(...)
-		local args = {...}
-		local now = os.clock()
-		if now - lastCall >= duration then
-			lastCall = now
-			callback(table.unpack(args))
-		elseif not scheduled then
-			scheduled = true
-			task.delay(duration - (now - lastCall), function()
-				scheduled = false
-				lastCall = os.clock()
-				callback(table.unpack(args))
-			end)
-		end
-	end
-end
-
--- ========================================
--- TABLE UTILITIES
--- ========================================
-
--- Deep copies a table
-function Utility.DeepCopy(original: {[any]: any}): {[any]: any}
-	local copy = {}
-	for key, value in pairs(original) do
-		if type(value) == "table" then
-			copy[key] = Utility.DeepCopy(value)
-		else
-			copy[key] = value
-		end
-	end
-	return copy
 end
 
 return Utility

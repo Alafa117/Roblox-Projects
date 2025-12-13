@@ -1,8 +1,8 @@
 --[[
 	Module: ValidationHelper
 	Type: Validation Utility Module
-	Location: ReplicatedStorage.Combat_System.Core.ValidationHelper
-	Path: src/shared/Combat_System/Core/ValidationHelper.luau
+	Location: ReplicatedStorage.CombatCore.Core.ValidationHelper
+	Path: src/shared/CombatCore/Core/ValidationHelper.luau
 	
 	Description:
 		Centralized validation logic for combat actions.
@@ -51,22 +51,6 @@ function ValidationHelper.GetCharacterComponents(character: Model): (Humanoid?, 
 	end
 	
 	return humanoid, rootPart
-end
-
--- ========================================
--- PLAYER VALIDATION
--- ========================================
-
-function ValidationHelper.IsPlayerValid(player: Player): boolean
-	if not player or not player:IsDescendantOf(game) then
-		return false
-	end
-	
-	if not player.Character then
-		return false
-	end
-	
-	return ValidationHelper.IsCharacterValid(player.Character)
 end
 
 -- ========================================

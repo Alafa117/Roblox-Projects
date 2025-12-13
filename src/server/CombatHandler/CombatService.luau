@@ -2,7 +2,7 @@
 	Module: CombatService
 	Type: Server Main Service
 	Location: ServerScriptService.CombatService.CombatService
-	Path: src/server/CombatService/CombatService.luau
+	Path: src/server/CombatHandler/CombatService.luau
 	
 	Description:
 		Main server-side service for the Combat System.
@@ -11,8 +11,8 @@
 		Manages player states, cooldowns, and synchronization with clients.
 	
 	Dependencies:
-		- ReplicatedStorage.Combat_System.Core (Config, Enums, Types, Logger, Utility)
-		- ReplicatedStorage.Combat_System.Network.NetworkManager
+		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger, Utility)
+		- ReplicatedStorage.CombatCore.Network.NetworkManager
 		- ServerScriptService.CombatService.PlayerDataManager
 	
 	Author: Professional Roblox Scripter
@@ -26,7 +26,7 @@ local RunService = game:GetService("RunService")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Config = require(Core.Config)
@@ -662,17 +662,6 @@ function CombatService:ApplyDamage(attacker: Player, victim: Player | Model, dam
 	})
 	
 	return hitData
-end
-
--- ========================================
--- CLEANUP
--- ========================================
-
-function CombatService:Destroy()
-	self._isInitialized = false
-	table.clear(self._mechanics)
-	
-	Logger:Info("CombatService destroyed")
 end
 
 return CombatService

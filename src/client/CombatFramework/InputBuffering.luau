@@ -2,7 +2,7 @@
 	Module: InputBuffering
 	Type: Client Utility Module
 	Location: StarterPlayer.StarterPlayerScripts.CombatController.InputBuffering
-	Path: src/client/CombatController/InputBuffering.luau
+	Path: src/client/CombatFramework/InputBuffering.luau
 	
 	Description:
 		Implements input buffering for smoother combat feel.
@@ -10,7 +10,7 @@
 		Prevents input loss during combo chains and ability cooldowns.
 	
 	Dependencies:
-		- ReplicatedStorage.Combat_System.Core.Logger
+		- ReplicatedStorage.CombatCore.Core.Logger
 	
 	Author: Professional Roblox Scripter
 	Created: December 9, 2025
@@ -21,7 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Logger = require(Core.Logger).GetInstance()

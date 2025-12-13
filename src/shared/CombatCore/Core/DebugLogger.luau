@@ -1,8 +1,8 @@
 --[[
 	Module: DebugLogger
 	Type: Debug Utility Module
-	Location: ReplicatedStorage.Combat_System.Core.DebugLogger
-	Path: src/shared/Combat_System/Core/DebugLogger.luau
+	Location: ReplicatedStorage.CombatCore.Core.DebugLogger
+	Path: src/shared/CombatCore/Core/DebugLogger.luau
 	
 	Description:
 		Centralized debug output manager to eliminate duplicate print statements.
@@ -17,7 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 local Config = require(Core.Config)
 

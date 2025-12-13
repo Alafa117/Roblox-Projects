@@ -1,8 +1,8 @@
 --[[
 	Module: CombatConfig
 	Type: Configuration Module
-	Location: ReplicatedStorage.Combat_System.Core.Config
-	Path: src/shared/Combat_System/Core/Config.luau
+	Location: ReplicatedStorage.CombatCore.Core.Config
+	Path: src/shared/CombatCore/Core/Config.luau
 	
 	Description:
 		Centralized configuration for the Combat System.
@@ -47,7 +47,6 @@ CombatConfig.StrongAttack = {
 CombatConfig.Block = {
 	DamageReduction = 0.65, -- 65% damage reduction (balanced)
 	Cooldown = 0.5, -- Short cooldown
-	MaxBlockDuration = 8.0, -- Generous block time
 	BlockBreakStunDuration = 1.8, -- Punish for block break
 	PerfectBlockWindow = 0.5, -- 500ms window for human reaction time
 	PerfectBlockReduction = 0.98, -- 98% damage reduction on perfect block

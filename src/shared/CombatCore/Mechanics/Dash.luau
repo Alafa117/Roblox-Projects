@@ -1,8 +1,8 @@
 --[[
 	Module: Dash
 	Type: Combat Mechanic Module (Server)
-	Location: ReplicatedStorage.Combat_System.Mechanics.Dash
-	Path: src/shared/Combat_System/Mechanics/Dash.luau
+	Location: ReplicatedStorage.CombatCore.Mechanics.Dash
+	Path: src/shared/CombatCore/Mechanics/Dash.luau
 	
 	Description:
 		Implements the Dash (Q) movement mechanic.
@@ -11,7 +11,7 @@
 		Directional dash based on player input (Forward, Backward, Left, Right).
 	
 	Dependencies:
-		- ReplicatedStorage.Combat_System.Core (Config, Enums, Types, Logger, Utility)
+		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger, Utility)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
@@ -23,7 +23,7 @@ local RunService = game:GetService("RunService")
 
 -- Module Imports
 local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("Combat_System")
+local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Enums = require(Core.Enums)
