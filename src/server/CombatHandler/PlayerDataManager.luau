@@ -37,6 +37,9 @@ PlayerDataManager.__index = PlayerDataManager
 -- Singleton Instance
 local ManagerInstance: PlayerDataManager? = nil
 
+-- Cache NetworkManager to avoid repeated lookups
+local NetworkManagerCache = nil
+
 -- ========================================
 -- TYPES
 -- ========================================
@@ -76,9 +79,10 @@ end
 
 function PlayerDataManager:CreatePlayerData(player: Player): Types.PlayerCombatData
 	-- Check if data already exists
-	if self._playerData[player] then
+	local existingData = self:GetPlayerData(player)
+	if existingData then
 		Logger:Warning("Player data already exists", {player = player.Name})
-		return self._playerData[player]
+		return existingData
 	end
 	
 	-- Wait for character
@@ -149,10 +153,6 @@ function PlayerDataManager:GetAllPlayerData(): {[Player]: Types.PlayerCombatData
 	return self._playerData
 end
 
-function PlayerDataManager:HasPlayerData(player: Player): boolean
-	return self._playerData[player] ~= nil
-end
-
 -- ========================================
 -- STATE MANAGEMENT
 -- ========================================
@@ -172,6 +172,22 @@ function PlayerDataManager:SetPlayerState(player: Player, newState: string)
 		from = data.PreviousState,
 		to = newState
 	})
+	
+	-- Sync with client using cached NetworkManager
+	if not NetworkManagerCache then
+		-- Initialize cache on first use
+		local Network = CombatSystem:FindFirstChild("Network")
+		if Network then
+			local NetworkManagerModule = Network:FindFirstChild("NetworkManager")
+			if NetworkManagerModule then
+				NetworkManagerCache = require(NetworkManagerModule).GetServerInstance()
+			end
+		end
+	end
+	
+	if NetworkManagerCache then
+		NetworkManagerCache:SendToClient(player, Enums.NetworkEvent.StateChanged, {State = newState})
+	end
 end
 
 function PlayerDataManager:GetPlayerState(player: Player): string?

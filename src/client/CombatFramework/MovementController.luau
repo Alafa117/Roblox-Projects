@@ -57,6 +57,7 @@ type ActiveMovement = {
 
 type MovementController = {
 	_activeMovement: ActiveMovement?,
+	_movementThread: thread?,
 }
 
 -- ========================================
@@ -67,6 +68,7 @@ function MovementController.new(): MovementController
 	local self = setmetatable({}, MovementController)
 	
 	self._activeMovement = nil
+	self._movementThread = nil
 	
 	return self
 end
@@ -172,6 +174,12 @@ function MovementController:StartDynamicMovement(movementType: string, config: M
 		running = running
 	}
 	
+	-- Cancel previous movement thread if any
+	if self._movementThread then
+		task.cancel(self._movementThread)
+		self._movementThread = nil
+	end
+	
 	-- Show hitbox visualization if enabled
 	if Config.Debug.ShowHitboxes then
 		local visualizationType = movementType == "Dash" and "Dash" or "Slide"
@@ -187,7 +195,7 @@ function MovementController:StartDynamicMovement(movementType: string, config: M
 	end
 	
 	-- Movement loop with friction
-	task.spawn(function()
+	self._movementThread = task.spawn(function()
 		while elapsed <= config.Duration do
 			if not self._activeMovement or not self._activeMovement.running or not rootPart or not rootPart.Parent then
 				break
@@ -240,6 +248,12 @@ function MovementController:StopMovement()
 	
 	-- Stop loop
 	self._activeMovement.running = false
+	
+	-- Cancel thread if still running
+	if self._movementThread then
+		task.cancel(self._movementThread)
+		self._movementThread = nil
+	end
 	
 	-- Cleanup
 	if self._activeMovement.bodyVelocity and self._activeMovement.bodyVelocity.Parent then

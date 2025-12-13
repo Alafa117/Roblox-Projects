@@ -41,7 +41,7 @@ local IS_SERVER = RunService:IsServer()
 local Config = require(Core.Config)
 
 -- Anti-exploit tracking
-local SlideStartPositions = {} -- {[player] = {Position = Vector3, Time = number}}
+local SlideStartPositions = {} -- {[player] = {Position = Vector3, Time = number, Thread = thread}}
 
 -- ========================================
 -- EXECUTE METHOD
@@ -67,19 +67,20 @@ function Slide:Execute(player: Player, data: {[string]: any})
 		return
 	end
 	
-	-- Store start position and time for validation
+	-- Schedule validation after slide duration
+	local validationThread = task.delay(Config.Slide.Duration + 0.1, function()
+		self:_ValidateSlideDistance(player)
+	end)
+	
+	-- Store start position, time, and thread for validation
 	SlideStartPositions[player] = {
 		Position = humanoidRootPart.Position,
-		Time = tick()
+		Time = tick(),
+		Thread = validationThread
 	}
 	
 	-- Broadcast to clients for VFX
 	self:_BroadcastSlide(player)
-	
-	-- Schedule validation after slide duration
-	task.delay(Config.Slide.Duration + 0.1, function()
-		self:_ValidateSlideDistance(player)
-	end)
 	
 	Logger:Debug("Slide executed", {
 		player = player.Name,
@@ -89,6 +90,12 @@ end
 
 function Slide:CancelSlide(player: Player)
 	Logger:Debug("Slide cancel requested", {player = player.Name})
+	
+	-- Cancel validation thread if exists
+	local startData = SlideStartPositions[player]
+	if startData and startData.Thread then
+		task.cancel(startData.Thread)
+	end
 	
 	-- Clean up tracking data
 	SlideStartPositions[player] = nil

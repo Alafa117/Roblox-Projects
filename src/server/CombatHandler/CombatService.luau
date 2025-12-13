@@ -52,6 +52,9 @@ type CombatService = {
 	_networkManager: any?,
 	_mechanics: {[string]: any},
 	_isInitialized: boolean,
+	_activeTasks: {[Player]: {[string]: thread}},
+	_connections: {RBXScriptConnection},
+	_playerConnections: {[Player]: {RBXScriptConnection}},
 }
 
 -- ========================================
@@ -64,6 +67,9 @@ function CombatService.new(): CombatService
 	self._networkManager = nil
 	self._mechanics = {}
 	self._isInitialized = false
+	self._activeTasks = {} -- Track active task.delay calls per player
+	self._connections = {} -- Track global event connections
+	self._playerConnections = {} -- Track per-player event connections
 	
 	Logger:Info("CombatService created")
 	
@@ -181,14 +187,16 @@ function CombatService:_SetupPlayerConnections()
 	end
 	
 	-- Handle new players
-	Players.PlayerAdded:Connect(function(player)
+	local playerAddedConnection = Players.PlayerAdded:Connect(function(player)
 		self:_OnPlayerAdded(player)
 	end)
+	table.insert(self._connections, playerAddedConnection)
 	
 	-- Handle leaving players
-	Players.PlayerRemoving:Connect(function(player)
+	local playerRemovingConnection = Players.PlayerRemoving:Connect(function(player)
 		self:_OnPlayerRemoving(player)
 	end)
+	table.insert(self._connections, playerRemovingConnection)
 end
 
 function CombatService:_OnPlayerAdded(player: Player)
@@ -197,16 +205,22 @@ function CombatService:_OnPlayerAdded(player: Player)
 		self:_OnCharacterAdded(player, player.Character)
 	end
 	
-	player.CharacterAdded:Connect(function(character)
+	-- Track player-specific connections
+	if not self._playerConnections[player] then
+		self._playerConnections[player] = {}
+	end
+	
+	local characterAddedConnection = player.CharacterAdded:Connect(function(character)
 		self:_OnCharacterAdded(player, character)
 	end)
+	table.insert(self._playerConnections[player], characterAddedConnection)
 	
 	Logger:Info("Player added to combat service", {player = player.Name})
 end
 
 function CombatService:_OnCharacterAdded(player: Player, character: Model)
 	-- Create or update player data
-	if PlayerDataManager:HasPlayerData(player) then
+	if PlayerDataManager:GetPlayerData(player) then
 		PlayerDataManager:UpdateCharacterReferences(player, character)
 	else
 		PlayerDataManager:CreatePlayerData(player)
@@ -215,15 +229,23 @@ function CombatService:_OnCharacterAdded(player: Player, character: Model)
 	-- Listen for death
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
-		humanoid.Died:Connect(function()
+		if not self._playerConnections[player] then
+			self._playerConnections[player] = {}
+		end
+		
+		local diedConnection = humanoid.Died:Connect(function()
 			self:_OnCharacterDied(player)
 		end)
+		table.insert(self._playerConnections[player], diedConnection)
 	end
 	
 	Logger:Info("Character added to combat service", {player = player.Name})
 end
 
 function CombatService:_OnCharacterDied(player: Player)
+	-- Cancel active tasks on death
+	self:_CancelPlayerTasks(player)
+	
 	PlayerDataManager:SetPlayerState(player, Enums.CombatState.Dead)
 	PlayerDataManager:ResetCombo(player)
 	
@@ -231,6 +253,18 @@ function CombatService:_OnCharacterDied(player: Player)
 end
 
 function CombatService:_OnPlayerRemoving(player: Player)
+	-- Disconnect player-specific connections
+	if self._playerConnections[player] then
+		for _, connection in ipairs(self._playerConnections[player]) do
+			connection:Disconnect()
+		end
+		self._playerConnections[player] = nil
+	end
+	
+	-- Cancel active tasks
+	self:_CancelPlayerTasks(player)
+	
+	-- Remove player data
 	PlayerDataManager:RemovePlayerData(player)
 	
 	Logger:Info("Player removed from combat service", {player = player.Name})
@@ -244,13 +278,7 @@ function CombatService:_HandleActionRequest(player: Player, data: {[string]: any
 	local actionType = data.ActionType
 	DebugLogger.ServerRequest(player.Name, "ActionRequest", actionType)
 	
-	-- Validate player
-	if not PlayerDataManager:ValidatePlayerData(player) then
-		DebugLogger.ServerValidationFailed(player.Name, actionType, "Invalid player data")
-		return {Success = false, ErrorCode = "INVALID_PLAYER"}
-	end
-	
-	-- Route to appropriate handler
+	-- Route to appropriate handler (validation done in _ValidateAction)
 	if actionType == Enums.ActionType.M1 then
 		return self:_ProcessLightAttack(player, data)
 	elseif actionType == Enums.ActionType.M2 then
@@ -270,6 +298,48 @@ end
 
 function CombatService:_HandleSlideRequest(player: Player, data: {[string]: any}): {[string]: any}
 	return self:_ProcessSlide(player, data)
+end
+
+-- ========================================
+-- TASK MANAGEMENT HELPERS
+-- ========================================
+
+-- Schedule state transition after delay with automatic cleanup
+function CombatService:_ScheduleStateTransition(player: Player, targetState: string, delay: number, fromState: string?)
+	local taskId = tostring(player.UserId) .. "_" .. targetState .. "_" .. os.clock()
+	
+	local thread = task.delay(delay, function()
+		-- Remove from tracking
+		if self._activeTasks[player] then
+			self._activeTasks[player][taskId] = nil
+		end
+		
+		-- Only transition if player still in expected state (or no specific state required)
+		local currentState = PlayerDataManager:GetPlayerState(player)
+		if not fromState or currentState == fromState then
+			if PlayerDataManager:ValidatePlayerData(player) then
+				PlayerDataManager:SetPlayerState(player, targetState)
+			end
+		end
+	end)
+	
+	-- Track task for cleanup
+	if not self._activeTasks[player] then
+		self._activeTasks[player] = {}
+	end
+	self._activeTasks[player][taskId] = thread
+end
+
+-- Cancel all active tasks for a player
+function CombatService:_CancelPlayerTasks(player: Player)
+	local tasks = self._activeTasks[player]
+	if not tasks then return end
+	
+	for _, thread in pairs(tasks) do
+		task.cancel(thread)
+	end
+	
+	self._activeTasks[player] = nil
 end
 
 -- ========================================
@@ -294,18 +364,18 @@ function CombatService:_ProcessLightAttack(player: Player, data: {[string]: any}
 		DebugLogger.ServerMechanicExecution("LightAttack", player.Name, "Cancelled movement for attack")
 	end
 	
-	-- Handle combo
-	local comboCount = data.ComboCount or 1
-	local timeSinceLastAttack = os.clock() - (PlayerDataManager:GetPlayerData(player).LastAttackTime or 0)
+	-- Handle combo (server is authoritative, client ComboCount is for reference only)
+	local playerData = PlayerDataManager:GetPlayerData(player)
+	local timeSinceLastAttack = os.clock() - (playerData.LastAttackTime or 0)
 	
-	if timeSinceLastAttack <= Config.LightAttack.ComboWindow then
-		PlayerDataManager:IncrementCombo(player, Config.LightAttack.MaxComboCount)
-	else
+	-- Check if combo window is still active
+	if timeSinceLastAttack > Config.LightAttack.ComboWindow then
 		PlayerDataManager:ResetCombo(player)
-		PlayerDataManager:IncrementCombo(player, Config.LightAttack.MaxComboCount)
 	end
 	
-	comboCount = PlayerDataManager:GetComboCount(player)
+	-- Increment combo
+	PlayerDataManager:IncrementCombo(player, Config.LightAttack.MaxComboCount)
+	local comboCount = PlayerDataManager:GetComboCount(player)
 	
 	-- Execute attack mechanic
 	local mechanic = self._mechanics.LightAttack
@@ -327,11 +397,7 @@ function CombatService:_ProcessLightAttack(player: Player, data: {[string]: any}
 	
 	-- Return to idle after animation (80% of cooldown for smooth combo flow)
 	local animationDuration = Config.LightAttack.Cooldown * 0.8
-	task.delay(animationDuration, function()
-		if PlayerDataManager:GetPlayerState(player) == Enums.CombatState.Attacking then
-			PlayerDataManager:SetPlayerState(player, Enums.CombatState.Idle)
-		end
-	end)
+	self:_ScheduleStateTransition(player, Enums.CombatState.Idle, animationDuration, Enums.CombatState.Attacking)
 	
 	Logger:Debug("Light attack processed", {player = player.Name, combo = comboCount})
 	
@@ -373,11 +439,7 @@ function CombatService:_ProcessStrongAttack(player: Player, _data: {[string]: an
 	end
 	
 	-- Return to idle after animation (StunDuration + buffer)
-	task.delay(Config.StrongAttack.StunDuration + 0.3, function()
-		if PlayerDataManager:GetPlayerState(player) == Enums.CombatState.Attacking then
-			PlayerDataManager:SetPlayerState(player, Enums.CombatState.Idle)
-		end
-	end)
+	self:_ScheduleStateTransition(player, Enums.CombatState.Idle, Config.StrongAttack.StunDuration + 0.3, Enums.CombatState.Attacking)
 	
 	Logger:Debug("Strong attack processed", {player = player.Name})
 	
@@ -406,18 +468,23 @@ function CombatService:_ProcessDash(player: Player, data: {[string]: any}): {[st
 	local mechanic = self._mechanics.Dash
 	if mechanic then
 		mechanic:Execute(player, {Direction = data.Direction})
+	else
+		Logger:Error("Dash mechanic not loaded", {player = player.Name})
 	end
 	
-	-- Remove invulnerability and return to idle
-	task.delay(Config.Dash.InvulnerabilityFrames, function()
+	-- Schedule invulnerability removal
+	local invulnThread = task.delay(Config.Dash.InvulnerabilityFrames, function()
 		PlayerDataManager:SetInvulnerable(player, false)
 	end)
 	
-	task.delay(Config.Dash.Duration, function()
-		if PlayerDataManager:GetPlayerState(player) == Enums.CombatState.Dashing then
-			PlayerDataManager:SetPlayerState(player, Enums.CombatState.Idle)
-		end
-	end)
+	-- Track invulnerability task
+	if not self._activeTasks[player] then
+		self._activeTasks[player] = {}
+	end
+	self._activeTasks[player]["invuln_" .. os.clock()] = invulnThread
+	
+	-- Return to idle after dash
+	self:_ScheduleStateTransition(player, Enums.CombatState.Idle, Config.Dash.Duration, Enums.CombatState.Dashing)
 	
 	Logger:Debug("Dash processed", {player = player.Name, direction = data.Direction})
 	
@@ -451,11 +518,7 @@ function CombatService:_ProcessSlide(player: Player, data: {[string]: any}): {[s
 	end
 	
 	-- Return to idle after slide
-	task.delay(Config.Slide.Duration, function()
-		if PlayerDataManager:GetPlayerState(player) == Enums.CombatState.Sliding then
-			PlayerDataManager:SetPlayerState(player, Enums.CombatState.Idle)
-		end
-	end)
+	self:_ScheduleStateTransition(player, Enums.CombatState.Idle, Config.Slide.Duration, Enums.CombatState.Sliding)
 	
 	Logger:Debug("Slide processed", {player = player.Name})
 	
@@ -599,20 +662,51 @@ end
 -- ========================================
 -- UPDATE LOOP
 -- ========================================
+-- Note: Stun checks are already handled via task.delay in SetStunned()
+-- This loop is kept for future extensions (stamina regen, combo timeout, etc.)
 
 function CombatService:_StartUpdateLoop()
-	RunService.Heartbeat:Connect(function(deltaTime)
+	local heartbeatConnection = RunService.Heartbeat:Connect(function(deltaTime)
 		self:_Update(deltaTime)
 	end)
+	table.insert(self._connections, heartbeatConnection)
 end
 
 function CombatService:_Update(_deltaTime: number)
-	-- Update stuns
-	for player, data in pairs(PlayerDataManager:GetAllPlayerData()) do
-		if data.IsStunned and data.StunEndTime and os.clock() >= data.StunEndTime then
-			PlayerDataManager:SetStunned(player, false)
+	-- Reserved for future continuous updates:
+	-- - Stamina regeneration
+	-- - Combo timeout checks
+	-- - Status effect ticks
+	-- Current: Minimal overhead, no active logic needed
+end
+
+-- ========================================
+-- CLEANUP
+-- ========================================
+
+function CombatService:Destroy()
+	self._isInitialized = false
+	
+	-- Disconnect all global connections
+	for _, connection in ipairs(self._connections) do
+		connection:Disconnect()
+	end
+	table.clear(self._connections)
+	
+	-- Disconnect all player-specific connections
+	for _, connections in pairs(self._playerConnections) do
+		for _, connection in ipairs(connections) do
+			connection:Disconnect()
 		end
 	end
+	table.clear(self._playerConnections)
+	
+	-- Cancel all active tasks
+	for player, _ in pairs(self._activeTasks) do
+		self:_CancelPlayerTasks(player)
+	end
+	
+	Logger:Info("CombatService destroyed")
 end
 
 -- ========================================
@@ -620,6 +714,12 @@ end
 -- ========================================
 
 function CombatService:ApplyDamage(attacker: Player, victim: Player | Model, damage: number): Types.HitData?
+	-- Validate attacker
+	if not attacker or not attacker:IsA("Player") then
+		Logger:Warning("Invalid attacker in ApplyDamage")
+		return nil
+	end
+	
 	-- Support for both Players and NPCs/Dummies
 	local isPlayer = typeof(victim) == "Instance" and victim:IsA("Player")
 	local victimCharacter = if isPlayer then victim.Character else victim

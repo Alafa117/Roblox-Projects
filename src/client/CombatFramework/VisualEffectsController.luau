@@ -38,6 +38,7 @@ VisualEffectsController.__index = VisualEffectsController
 
 type VisualEffectsController = {
 	_activeEffects: {[string]: Instance},
+	_activeThreads: {thread},
 }
 
 -- ========================================
@@ -48,6 +49,7 @@ function VisualEffectsController.new(): VisualEffectsController
 	local self = setmetatable({}, VisualEffectsController)
 	
 	self._activeEffects = {}
+	self._activeThreads = {}
 	
 	return self
 end
@@ -77,9 +79,10 @@ function VisualEffectsController:ApplyStrongAttackEffect()
 	self._activeEffects["M2Charge"] = highlight
 	
 	-- Auto-remove after M2 duration
-	task.delay(Config.StrongAttack.StunDuration + 0.3, function()
+	local thread = task.delay(Config.StrongAttack.StunDuration + 0.3, function()
 		self:RemoveEffect("M2Charge")
 	end)
+	table.insert(self._activeThreads, thread)
 end
 
 -- ========================================
@@ -100,11 +103,12 @@ function VisualEffectsController:PlayHitEffect(character: Model)
 	highlight.Parent = character
 	
 	-- Remove after brief flash
-	task.delay(0.15, function()
+	local thread = task.delay(0.15, function()
 		if highlight and highlight.Parent then
 			highlight:Destroy()
 		end
 	end)
+	table.insert(self._activeThreads, thread)
 end
 
 -- ========================================
@@ -146,6 +150,13 @@ end
 -- ========================================
 
 function VisualEffectsController:Destroy()
+	-- Cancel all active threads
+	for _, thread in ipairs(self._activeThreads) do
+		task.cancel(thread)
+	end
+	table.clear(self._activeThreads)
+	
+	-- Clear all effects
 	self:ClearAllEffects()
 end
 

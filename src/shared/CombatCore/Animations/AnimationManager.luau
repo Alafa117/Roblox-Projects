@@ -42,6 +42,7 @@ type AnimationTrackInfo = {
 	AnimationId: string,
 	Priority: Enum.AnimationPriority,
 	IsPlaying: boolean,
+	EndedConnection: RBXScriptConnection?,
 }
 
 type AnimationManager = {
@@ -52,6 +53,9 @@ type AnimationManager = {
 	_loadedAnimations: {[string]: AnimationTrackInfo},
 	_currentTrack: AnimationTrack?,
 	_isInitialized: boolean,
+	_connections: {RBXScriptConnection},
+	_activeThreads: {thread},
+	_blockTransitionThread: thread?,
 }
 
 -- ========================================
@@ -68,6 +72,9 @@ function AnimationManager.new(character: Model?): AnimationManager
 	self._loadedAnimations = {}
 	self._currentTrack = nil
 	self._isInitialized = false
+	self._connections = {}
+	self._activeThreads = {}
+	self._blockTransitionThread = nil
 	
 	if character then
 		self:LoadAnimations(character)
@@ -196,6 +203,7 @@ function AnimationManager:_LoadAnimation(key: string, animationId: string, prior
 		AnimationId = animationId,
 		Priority = priority,
 		IsPlaying = false,
+		EndedConnection = nil,
 	}
 	
 	Logger:Debug("Animation loaded", {key = key, id = animationId})
@@ -226,16 +234,24 @@ function AnimationManager:PlayAttackAnimation(attackType: string, comboCount: nu
 end
 
 function AnimationManager:PlayBlockAnimation(isBlocking: boolean)
+	-- Cancel any pending block transition
+	if self._blockTransitionThread then
+		task.cancel(self._blockTransitionThread)
+		self._blockTransitionThread = nil
+	end
+	
 	if isBlocking then
 		self:_PlayAnimation("Block_Start", false, 0.1)
 		
 		-- Transition to hold after start animation
-		task.delay(0.3, function()
+		self._blockTransitionThread = task.delay(0.3, function()
 			local startTrack = self:_GetAnimationTrack("Block_Start")
 			if startTrack and startTrack.IsPlaying then
 				self:_PlayAnimation("Block_Hold", true, 0.2)
 			end
+			self._blockTransitionThread = nil
 		end)
+		table.insert(self._activeThreads, self._blockTransitionThread)
 	else
 		-- Stop hold and play end
 		self:_StopAnimation("Block_Hold")
@@ -294,12 +310,19 @@ function AnimationManager:_PlayAnimation(key: string, loop: boolean?, fadeTime: 
 	
 	-- Handle animation ended
 	if not loop then
-		track.Ended:Connect(function()
+		-- Disconnect previous connection if exists
+		if animInfo.EndedConnection then
+			animInfo.EndedConnection:Disconnect()
+		end
+		
+		-- Create new connection
+		animInfo.EndedConnection = track.Ended:Connect(function()
 			animInfo.IsPlaying = false
 			if self._currentTrack == track then
 				self._currentTrack = nil
 			end
 		end)
+		table.insert(self._connections, animInfo.EndedConnection)
 	end
 	
 	Logger:Debug("Animation playing", {key = key, loop = loop})
@@ -334,8 +357,31 @@ end
 -- ========================================
 
 function AnimationManager:Destroy()
-	-- Stop and destroy all tracks
+	-- Cancel block transition thread if exists
+	if self._blockTransitionThread then
+		task.cancel(self._blockTransitionThread)
+		self._blockTransitionThread = nil
+	end
+	
+	-- Disconnect all connections
+	for _, connection in ipairs(self._connections) do
+		if connection.Connected then
+			connection:Disconnect()
+		end
+	end
+	table.clear(self._connections)
+	
+	-- Cancel all active threads
+	for _, thread in ipairs(self._activeThreads) do
+		task.cancel(thread)
+	end
+	table.clear(self._activeThreads)
+	
+	-- Stop and destroy all tracks (with their individual connections)
 	for _key, animInfo in pairs(self._loadedAnimations) do
+		if animInfo.EndedConnection then
+			animInfo.EndedConnection:Disconnect()
+		end
 		if animInfo.Track then
 			animInfo.Track:Destroy()
 		end

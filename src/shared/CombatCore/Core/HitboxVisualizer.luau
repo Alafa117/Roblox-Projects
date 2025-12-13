@@ -80,11 +80,16 @@ function HitboxVisualizer.ShowHitbox(origin: Vector3, size: Vector3, attackType:
 	
 	hitbox.Parent = GetDebugFolder()
 	
-	-- Auto-destroy after duration
-	task.delay(duration, function()
+	-- Auto-destroy after duration with safety check
+	local thread = task.delay(duration, function()
 		if hitbox and hitbox.Parent then
 			hitbox:Destroy()
 		end
+	end)
+	
+	-- Cancel thread if hitbox is destroyed early
+	hitbox.Destroying:Connect(function()
+		task.cancel(thread)
 	end)
 	
 	return hitbox
@@ -112,11 +117,16 @@ function HitboxVisualizer.ShowRange(origin: Vector3, range: number, attackType: 
 	
 	sphere.Parent = GetDebugFolder()
 	
-	-- Auto-destroy after duration
-	task.delay(duration, function()
+	-- Auto-destroy after duration with safety check
+	local thread = task.delay(duration, function()
 		if sphere and sphere.Parent then
 			sphere:Destroy()
 		end
+	end)
+	
+	-- Cancel thread if sphere is destroyed early
+	sphere.Destroying:Connect(function()
+		task.cancel(thread)
 	end)
 	
 	return sphere
@@ -151,11 +161,16 @@ function HitboxVisualizer.ShowOrigin(origin: Vector3, attackType: string, durati
 	
 	marker.Parent = GetDebugFolder()
 	
-	-- Auto-destroy after duration
-	task.delay(duration, function()
+	-- Auto-destroy after duration with safety check
+	local thread = task.delay(duration, function()
 		if marker and marker.Parent then
 			marker:Destroy()
 		end
+	end)
+	
+	-- Cancel thread if marker is destroyed early
+	marker.Destroying:Connect(function()
+		task.cancel(thread)
 	end)
 	
 	return marker
@@ -202,11 +217,16 @@ function HitboxVisualizer.ShowDirection(origin: Vector3, direction: Vector3, att
 	shaft.Parent = folder
 	head.Parent = folder
 	
-	-- Auto-destroy after duration
-	task.delay(duration, function()
+	-- Auto-destroy after duration with safety check
+	local thread = task.delay(duration, function()
 		if folder and folder.Parent then
 			folder:Destroy()
 		end
+	end)
+	
+	-- Cancel thread if folder is destroyed early
+	folder.Destroying:Connect(function()
+		task.cancel(thread)
 	end)
 	
 	return folder

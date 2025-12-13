@@ -103,6 +103,7 @@ type CombatController = {
 	_lastAttackTime: number,
 	
 	_cooldowns: {[string]: number},
+	_connections: {RBXScriptConnection},
 	_isInitialized: boolean,
 	_enabled: boolean,
 	
@@ -137,6 +138,9 @@ function CombatController.new(): CombatController
 	for _, actionType in pairs(Enums.ActionType) do
 		self._cooldowns[actionType] = 0
 	end
+	
+	-- Event connections tracking
+	self._connections = {}
 	
 	-- Flags
 	self._isInitialized = false
@@ -199,9 +203,10 @@ function CombatController:_WaitForCharacter()
 	self:_OnCharacterAdded(LocalPlayer.Character)
 	
 	-- Listen for respawns
-	LocalPlayer.CharacterAdded:Connect(function(character)
+	local characterAddedConnection = LocalPlayer.CharacterAdded:Connect(function(character)
 		self:_OnCharacterAdded(character)
 	end)
+	table.insert(self._connections, characterAddedConnection)
 end
 
 function CombatController:_OnCharacterAdded(character: Model)
@@ -224,6 +229,17 @@ function CombatController:_OnCharacterAdded(character: Model)
 	self.Humanoid = humanoid
 	self.HumanoidRootPart = rootPart
 	
+	-- Clean up previous state
+	if self._movementController then
+		self._movementController:StopMovement()
+	end
+	if self._visualEffects then
+		self._visualEffects:ClearAllEffects()
+	end
+	if self._stateManager then
+		self._stateManager:CancelAllTimers()
+	end
+	
 	-- Reset state
 	self:_ResetState()
 	
@@ -232,10 +248,11 @@ function CombatController:_OnCharacterAdded(character: Model)
 		self._animationManager:LoadAnimations(character)
 	end
 	
-	-- Listen for death
-	humanoid.Died:Connect(function()
+	-- Listen for death (new connection per character is OK since old character is destroyed)
+	local diedConnection = humanoid.Died:Connect(function()
 		self:_OnCharacterDied()
 	end)
+	table.insert(self._connections, diedConnection)
 	
 	Logger:Info("Character loaded", {character = character.Name})
 end
@@ -354,17 +371,22 @@ end
 -- Helper: Detect and cancel active movement (Dash/Slide) if any
 -- Returns movement type being cancelled ("Dash", "Slide", or nil)
 function CombatController:_CancelActiveMovement()
-	-- Check BOTH state AND MovementController to catch movement mid-execution
+	-- Check state first to determine movement type
 	local wasDashing = self._currentState == Enums.CombatState.Dashing
 	local wasSliding = self._currentState == Enums.CombatState.Sliding
-	local hasActiveMovement = self._movementController:IsMoving()
 	
-	if hasActiveMovement or wasDashing then
+	-- Only cancel if there's active movement
+	if not self._movementController:IsMoving() and not wasDashing and not wasSliding then
+		return nil
+	end
+	
+	-- Cancel based on state (state determines movement type)
+	if wasDashing then
 		DebugLogger.ClientAction("Movement", "Cancelled Dash")
 		self._movementController:StopMovement()
 		self._networkManager:SendToServer(Enums.NetworkEvent.CancelDash, {})
 		return "Dash"
-	elseif hasActiveMovement or wasSliding then
+	elseif wasSliding then
 		DebugLogger.ClientAction("Movement", "Cancelled Slide")
 		self._movementController:StopMovement()
 		self._networkManager:SendToServer(Enums.NetworkEvent.CancelSlide, {})
@@ -619,8 +641,10 @@ function CombatController:_OnTakeDamage(damageData: {[string]: any})
 		self._animationManager:PlayHitAnimation()
 	end
 	
-	-- Play VFX/SFX
-	-- TODO: Implement visual effects
+	-- Play hit VFX
+	if self.Character then
+		self._visualEffects:PlayHitEffect(self.Character)
+	end
 	
 	Logger:Info("Took damage", {damage = damageData.Damage})
 end
@@ -701,9 +725,10 @@ end
 -- ========================================
 
 function CombatController:_StartUpdateLoop()
-	RunService.Heartbeat:Connect(function(deltaTime)
+	local heartbeatConnection = RunService.Heartbeat:Connect(function(deltaTime)
 		self:_Update(deltaTime)
 	end)
+	table.insert(self._connections, heartbeatConnection)
 end
 
 function CombatController:_Update(_deltaTime: number)
@@ -733,8 +758,13 @@ function CombatController:_ProcessBufferedInputs()
 end
 
 function CombatController:_UpdateComboWindow()
+	-- Only check if combo is active (optimization)
+	if self._comboCount == 0 then
+		return
+	end
+	
 	local timeSinceLastAttack = os.clock() - self._lastAttackTime
-	if timeSinceLastAttack > Config.LightAttack.ComboWindow and self._comboCount > 0 then
+	if timeSinceLastAttack > Config.LightAttack.ComboWindow then
 		self._comboCount = 0
 		Logger:Debug("Combo reset")
 	end
@@ -793,6 +823,12 @@ end
 
 function CombatController:Destroy()
 	self._enabled = false
+	
+	-- Disconnect all event connections
+	for _, connection in ipairs(self._connections) do
+		connection:Disconnect()
+	end
+	table.clear(self._connections)
 	
 	if self._inputHandler then
 		self._inputHandler:Destroy()

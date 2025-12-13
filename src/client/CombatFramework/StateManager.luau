@@ -102,6 +102,18 @@ function StateManager:SetState(newState: string, actionType: string?)
 		return false
 	end
 	
+	-- Cancel timer for old state if transitioning away
+	if oldState ~= newState and oldState ~= Enums.CombatState.Idle then
+		-- Cancel any active timer for the old state
+		for action, timer in pairs(self._activeStateTimers) do
+			local expectedState = self:_GetExpectedStateForAction(action)
+			if expectedState == oldState then
+				task.cancel(timer)
+				self._activeStateTimers[action] = nil
+			end
+		end
+	end
+	
 	self._controller._currentState = newState
 	
 	Logger:Debug("State changed", {

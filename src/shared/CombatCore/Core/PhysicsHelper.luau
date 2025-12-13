@@ -34,11 +34,16 @@ function PhysicsHelper.ApplyKnockback(character: Model, direction: Vector3, forc
 	bodyVelocity.Velocity = direction.Unit * force
 	bodyVelocity.Parent = rootPart
 	
-	-- Remove after 0.1 seconds
-	task.delay(0.1, function()
+	-- Remove after 0.1 seconds with safety check
+	local thread = task.delay(0.1, function()
 		if bodyVelocity and bodyVelocity.Parent then
 			bodyVelocity:Destroy()
 		end
+	end)
+	
+	-- Cancel thread if bodyVelocity is destroyed early
+	bodyVelocity.Destroying:Connect(function()
+		task.cancel(thread)
 	end)
 end
 
@@ -97,16 +102,26 @@ function PhysicsHelper.ApplyRagdoll(character: Model, duration: number)
 		end
 	end
 	
-	-- Schedule ragdoll removal
-	task.delay(duration, function()
-		PhysicsHelper.RemoveRagdoll(character)
+	-- Schedule ragdoll removal with safety check
+	local thread = task.delay(duration, function()
+		if character and character.Parent then
+			PhysicsHelper.RemoveRagdoll(character)
+		end
 	end)
+	
+	-- Store thread for cleanup
+	characterRagdollData.Thread = thread
 end
 
 function PhysicsHelper.RemoveRagdoll(character: Model)
 	local characterRagdollData = RagdollData[character]
 	if not characterRagdollData then
 		return
+	end
+	
+	-- Cancel pending thread if exists
+	if characterRagdollData.Thread then
+		task.cancel(characterRagdollData.Thread)
 	end
 	
 	local humanoid = character:FindFirstChildOfClass("Humanoid")

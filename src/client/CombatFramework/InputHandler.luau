@@ -50,6 +50,7 @@ type InputHandler = {
 	_inputStates: {[string]: boolean},
 	_blockedInputs: {[string]: boolean},
 	_lastInputTime: {[string]: number}, -- For debouncing
+	_connections: {RBXScriptConnection},
 }
 
 -- ========================================
@@ -64,6 +65,7 @@ function InputHandler.new(): InputHandler
 	self._inputStates = {}
 	self._blockedInputs = {}
 	self._lastInputTime = {} -- Debounce tracking
+	self._connections = {} -- Track connections for cleanup
 	
 	-- Initialize callback tables for each action
 	for _, actionType in pairs(Enums.ActionType) do
@@ -100,7 +102,7 @@ function InputHandler:Initialize()
 	)
 	
 	-- Bind mouse buttons (M1 and M2) in a single listener to avoid duplication
-	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	local inputBeganConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
 		
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -109,6 +111,7 @@ function InputHandler:Initialize()
 			self:_HandleM2Input(Enum.UserInputState.Begin, input)
 		end
 	end)
+	table.insert(self._connections, inputBeganConnection)
 	
 	-- Bind Q (Dash)
 	self:_BindAction(
@@ -143,10 +146,11 @@ function InputHandler:Initialize()
 	
 	-- Mobile touch support for M1
 	if UserInputService.TouchEnabled then
-		UserInputService.TouchTap:Connect(function(_touchPositions, gameProcessed)
+		local touchTapConnection = UserInputService.TouchTap:Connect(function(_touchPositions, gameProcessed)
 			if gameProcessed then return end
 			self:_HandleM1Input(Enum.UserInputState.Begin, nil)
 		end)
+		table.insert(self._connections, touchTapConnection)
 	end
 	
 	Logger:Info("InputHandler bindings initialized")
@@ -303,10 +307,17 @@ function InputHandler:Destroy()
 	ContextActionService:UnbindAction("CombatSlide")
 	ContextActionService:UnbindAction("CombatBlock")
 	
+	-- Disconnect all connections
+	for _, connection in ipairs(self._connections) do
+		connection:Disconnect()
+	end
+	table.clear(self._connections)
+	
 	-- Clear callbacks
 	table.clear(self._callbacks)
 	table.clear(self._inputStates)
 	table.clear(self._blockedInputs)
+	table.clear(self._lastInputTime)
 	
 	Logger:Info("InputHandler destroyed")
 end

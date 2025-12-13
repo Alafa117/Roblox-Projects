@@ -59,6 +59,7 @@ type NetworkManager = {
 	_handlers: {[string]: (...any) -> any},
 	_callbacks: {[string]: {(...any) -> ()}},
 	_rateLimits: {[Player]: RateLimitData}?,
+	_connections: {RBXScriptConnection},
 	_isServer: boolean,
 	_isClient: boolean,
 }
@@ -75,6 +76,7 @@ function NetworkManager.new(isServer: boolean): NetworkManager
 	self._handlers = {}
 	self._callbacks = {}
 	self._rateLimits = isServer and {} or nil
+	self._connections = {}
 	self._isServer = isServer
 	self._isClient = not isServer
 	
@@ -141,9 +143,9 @@ function NetworkManager:_Initialize()
 		self:_SetupServerListeners()
 		
 		-- Setup player cleanup
-		Players.PlayerRemoving:Connect(function(player)
+		table.insert(self._connections, Players.PlayerRemoving:Connect(function(player)
 			self:_CleanupPlayer(player)
-		end)
+		end))
 		
 	else
 		-- Wait for RemoteEvent and RemoteFunction
@@ -163,9 +165,9 @@ end
 
 function NetworkManager:_SetupServerListeners()
 	-- RemoteEvent listener (Client -> Server)
-	self._remoteEvent.OnServerEvent:Connect(function(player, eventType, data)
+	table.insert(self._connections, self._remoteEvent.OnServerEvent:Connect(function(player, eventType, data)
 		self:_HandleClientRequest(player, eventType, data)
-	end)
+	end))
 	
 	-- RemoteFunction listener (Client -> Server with response)
 	self._remoteFunction.OnServerInvoke = function(player, eventType, data)
@@ -240,9 +242,9 @@ end
 
 function NetworkManager:_SetupClientListeners()
 	-- RemoteEvent listener (Server -> Client)
-	self._remoteEvent.OnClientEvent:Connect(function(eventType, data)
+	table.insert(self._connections, self._remoteEvent.OnClientEvent:Connect(function(eventType, data)
 		self:_HandleServerEvent(eventType, data)
-	end)
+	end))
 	
 	Logger:Debug("Client listeners setup")
 end
@@ -408,6 +410,41 @@ function NetworkManager:SendToAllClients(eventType: string, data: {[string]: any
 	Logger:Debug("Sent to all clients", {event = eventType})
 end
 
+-- ========================================
+-- CLEANUP
+-- ========================================
 
+function NetworkManager:Destroy()
+	-- Disconnect all connections
+	for _, connection in ipairs(self._connections) do
+		if connection.Connected then
+			connection:Disconnect()
+		end
+	end
+	table.clear(self._connections)
+	
+	-- Clear handlers and callbacks
+	table.clear(self._handlers)
+	table.clear(self._callbacks)
+	
+	-- Clear rate limits
+	if self._rateLimits then
+		table.clear(self._rateLimits)
+	end
+	
+	-- Clear RemoteFunction callback
+	if self._remoteFunction then
+		self._remoteFunction.OnServerInvoke = nil
+	end
+	
+	-- Clear singleton reference
+	if self._isServer then
+		ServerInstance = nil
+	else
+		ClientInstance = nil
+	end
+	
+	Logger:Info("NetworkManager destroyed", {side = self._isServer and "Server" or "Client"})
+end
 
 return NetworkManager

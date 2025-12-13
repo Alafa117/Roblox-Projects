@@ -41,7 +41,7 @@ local IS_SERVER = RunService:IsServer()
 local Config = require(Core.Config)
 
 -- Anti-exploit tracking
-local DashStartPositions = {} -- {[player] = {Position = Vector3, Time = number}}
+local DashStartPositions = {} -- {[player] = {Position = Vector3, Time = number, Thread = thread}}
 
 -- ========================================
 -- EXECUTE METHOD
@@ -67,19 +67,20 @@ function Dash:Execute(player: Player, data: {[string]: any})
 		return
 	end
 	
-	-- Store start position and time for validation
+	-- Schedule validation after dash duration
+	local validationThread = task.delay(Config.Dash.Duration + 0.1, function()
+		self:_ValidateDashDistance(player)
+	end)
+	
+	-- Store start position, time, and thread for validation
 	DashStartPositions[player] = {
 		Position = humanoidRootPart.Position,
-		Time = tick()
+		Time = tick(),
+		Thread = validationThread
 	}
 	
 	-- Broadcast to clients for VFX
 	self:_BroadcastDash(player, direction)
-	
-	-- Schedule validation after dash duration
-	task.delay(Config.Dash.Duration + 0.1, function()
-		self:_ValidateDashDistance(player)
-	end)
 	
 	Logger:Debug("Dash executed", {
 		player = player.Name,
@@ -89,6 +90,12 @@ end
 
 function Dash:CancelDash(player: Player)
 	Logger:Debug("Dash cancel requested", {player = player.Name})
+	
+	-- Cancel validation thread if exists
+	local startData = DashStartPositions[player]
+	if startData and startData.Thread then
+		task.cancel(startData.Thread)
+	end
 	
 	-- Clean up tracking data
 	DashStartPositions[player] = nil
