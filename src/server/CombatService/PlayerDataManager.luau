@@ -1,0 +1,406 @@
+--[[
+	Module: PlayerDataManager
+	Type: Server Data Manager
+	Location: ServerScriptService.CombatService.PlayerDataManager
+	Path: src/server/CombatService/PlayerDataManager.luau
+	
+	Description:
+		Manages combat-related data for all players on the server.
+		Tracks player states, cooldowns, combos, and combat statistics.
+		Provides thread-safe access to player combat data.
+		Implements data cleanup on player leave.
+	
+	Dependencies:
+		- ReplicatedStorage.Combat_System.Core (Types, Enums, Logger)
+	
+	Author: Professional Roblox Scripter
+	Created: December 11, 2025
+--]]
+
+-- Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Module Imports
+local RS = ReplicatedStorage
+local CombatSystem = RS:WaitForChild("Combat_System")
+local Core = CombatSystem:WaitForChild("Core")
+
+local Types = require(Core.Types)
+local Enums = require(Core.Enums)
+local Logger = require(Core.Logger).GetInstance()
+local Utility = require(Core.Utility)
+
+-- Player Data Manager Class
+local PlayerDataManager = {}
+PlayerDataManager.__index = PlayerDataManager
+
+-- Singleton Instance
+local ManagerInstance: PlayerDataManager? = nil
+
+-- ========================================
+-- TYPES
+-- ========================================
+
+type PlayerDataManager = {
+	_playerData: {[Player]: Types.PlayerCombatData},
+}
+
+-- ========================================
+-- CONSTRUCTOR
+-- ========================================
+
+function PlayerDataManager.new(): PlayerDataManager
+	local self = setmetatable({}, PlayerDataManager)
+	
+	self._playerData = {}
+	
+	Logger:Info("PlayerDataManager created")
+	
+	return self
+end
+
+-- ========================================
+-- SINGLETON
+-- ========================================
+
+function PlayerDataManager.GetInstance(): PlayerDataManager
+	if not ManagerInstance then
+		ManagerInstance = PlayerDataManager.new()
+	end
+	return ManagerInstance
+end
+
+-- ========================================
+-- PLAYER DATA INITIALIZATION
+-- ========================================
+
+function PlayerDataManager:CreatePlayerData(player: Player): Types.PlayerCombatData
+	-- Check if data already exists
+	if self._playerData[player] then
+		Logger:Warning("Player data already exists", {player = player.Name})
+		return self._playerData[player]
+	end
+	
+	-- Wait for character
+	local character = player.Character or player.CharacterAdded:Wait()
+	local humanoid = character:WaitForChild("Humanoid", 5)
+	local rootPart = character:WaitForChild("HumanoidRootPart", 5)
+	
+	-- Create data structure
+	local data: Types.PlayerCombatData = {
+		Player = player,
+		Character = character,
+		Humanoid = humanoid,
+		HumanoidRootPart = rootPart,
+		
+		CurrentState = Enums.CombatState.Idle,
+		PreviousState = nil,
+		
+		ComboCount = 0,
+		LastAttackTime = 0,
+		
+		Cooldowns = {
+			M1 = 0,
+			M2 = 0,
+			Q = 0,
+			C = 0,
+			F = 0,
+		},
+		
+		IsInvulnerable = false,
+		IsStunned = false,
+		StunEndTime = nil,
+		
+		IsBlocking = false,
+		BlockStartTime = nil,
+		
+		Health = humanoid and humanoid.Health or 100,
+		MaxHealth = humanoid and humanoid.MaxHealth or 100,
+		Stamina = 100,
+		MaxStamina = 100,
+	}
+	
+	self._playerData[player] = data
+	
+	Logger:Info("Player combat data created", {player = player.Name})
+	
+	return data
+end
+
+function PlayerDataManager:RemovePlayerData(player: Player)
+	if not self._playerData[player] then
+		return
+	end
+	
+	self._playerData[player] = nil
+	
+	Logger:Info("Player combat data removed", {player = player.Name})
+end
+
+-- ========================================
+-- DATA ACCESS
+-- ========================================
+
+function PlayerDataManager:GetPlayerData(player: Player): Types.PlayerCombatData?
+	return self._playerData[player]
+end
+
+function PlayerDataManager:GetAllPlayerData(): {[Player]: Types.PlayerCombatData}
+	return self._playerData
+end
+
+function PlayerDataManager:HasPlayerData(player: Player): boolean
+	return self._playerData[player] ~= nil
+end
+
+-- ========================================
+-- STATE MANAGEMENT
+-- ========================================
+
+function PlayerDataManager:SetPlayerState(player: Player, newState: string)
+	local data = self:GetPlayerData(player)
+	if not data then
+		Logger:Warning("Cannot set state, player data not found", {player = player.Name})
+		return
+	end
+	
+	data.PreviousState = data.CurrentState
+	data.CurrentState = newState
+	
+	Logger:Debug("Player state changed", {
+		player = player.Name,
+		from = data.PreviousState,
+		to = newState
+	})
+end
+
+function PlayerDataManager:GetPlayerState(player: Player): string?
+	local data = self:GetPlayerData(player)
+	return data and data.CurrentState
+end
+
+-- ========================================
+-- COOLDOWN MANAGEMENT
+-- ========================================
+
+function PlayerDataManager:SetCooldown(player: Player, action: string, timestamp: number)
+	local data = self:GetPlayerData(player)
+	if not data then
+		return
+	end
+	
+	data.Cooldowns[action] = timestamp
+end
+
+function PlayerDataManager:IsCooldownReady(player: Player, action: string, cooldownDuration: number): boolean
+	local data = self:GetPlayerData(player)
+	if not data then
+		return false
+	end
+	
+	return Utility.IsCooldownReady(data.Cooldowns[action], cooldownDuration)
+end
+
+function PlayerDataManager:GetCooldownRemaining(player: Player, action: string, cooldownDuration: number): number
+	local data = self:GetPlayerData(player)
+	if not data then
+		return 0
+	end
+	
+	return Utility.GetCooldownRemaining(data.Cooldowns[action], cooldownDuration)
+end
+
+-- ========================================
+-- COMBO MANAGEMENT
+-- ========================================
+
+function PlayerDataManager:IncrementCombo(player: Player, maxCombo: number)
+	local data = self:GetPlayerData(player)
+	if not data then
+		return
+	end
+	
+	data.ComboCount = math.min(data.ComboCount + 1, maxCombo)
+	data.LastAttackTime = os.clock()
+	
+	Logger:Debug("Combo incremented", {player = player.Name, combo = data.ComboCount})
+end
+
+function PlayerDataManager:ResetCombo(player: Player)
+	local data = self:GetPlayerData(player)
+	if not data then
+		return
+	end
+	
+	data.ComboCount = 0
+	
+	Logger:Debug("Combo reset", {player = player.Name})
+end
+
+function PlayerDataManager:GetComboCount(player: Player): number
+	local data = self:GetPlayerData(player)
+	return data and data.ComboCount or 0
+end
+
+-- ========================================
+-- STATUS EFFECTS
+-- ========================================
+
+function PlayerDataManager:SetInvulnerable(player: Player, invulnerable: boolean)
+	local data = self:GetPlayerData(player)
+	if not data then
+		return
+	end
+	
+	data.IsInvulnerable = invulnerable
+	
+	Logger:Debug("Invulnerability changed", {player = player.Name, invulnerable = invulnerable})
+end
+
+function PlayerDataManager:IsInvulnerable(player: Player): boolean
+	local data = self:GetPlayerData(player)
+	return data and data.IsInvulnerable or false
+end
+
+function PlayerDataManager:SetStunned(player: Player, stunned: boolean, duration: number?)
+	local data = self:GetPlayerData(player)
+	if not data then
+		return
+	end
+	
+	data.IsStunned = stunned
+	
+	if stunned and duration then
+		data.StunEndTime = os.clock() + duration
+		self:SetPlayerState(player, Enums.CombatState.Stunned)
+	else
+		data.StunEndTime = nil
+		if data.CurrentState == Enums.CombatState.Stunned then
+			self:SetPlayerState(player, Enums.CombatState.Idle)
+		end
+	end
+	
+	Logger:Debug("Stun changed", {player = player.Name, stunned = stunned, duration = duration})
+end
+
+function PlayerDataManager:IsStunned(player: Player): boolean
+	local data = self:GetPlayerData(player)
+	if not data or not data.IsStunned then
+		return false
+	end
+	
+	-- Check if stun expired
+	if data.StunEndTime and os.clock() >= data.StunEndTime then
+		self:SetStunned(player, false)
+		return false
+	end
+	
+	return true
+end
+
+-- ========================================
+-- BLOCKING
+-- ========================================
+
+function PlayerDataManager:SetBlocking(player: Player, blocking: boolean)
+	local data = self:GetPlayerData(player)
+	if not data then
+		return
+	end
+	
+	data.IsBlocking = blocking
+	
+	if blocking then
+		data.BlockStartTime = os.clock()
+		self:SetPlayerState(player, Enums.CombatState.Blocking)
+	else
+		data.BlockStartTime = nil
+		if data.CurrentState == Enums.CombatState.Blocking then
+			self:SetPlayerState(player, Enums.CombatState.Idle)
+		end
+	end
+	
+	Logger:Debug("Blocking changed", {player = player.Name, blocking = blocking})
+end
+
+function PlayerDataManager:IsBlocking(player: Player): boolean
+	local data = self:GetPlayerData(player)
+	return data and data.IsBlocking or false
+end
+
+function PlayerDataManager:GetBlockDuration(player: Player): number
+	local data = self:GetPlayerData(player)
+	if not data or not data.BlockStartTime then
+		return 0
+	end
+	
+	return os.clock() - data.BlockStartTime
+end
+
+-- ========================================
+-- CHARACTER UPDATES
+-- ========================================
+
+function PlayerDataManager:UpdateCharacterReferences(player: Player, character: Model)
+	local data = self:GetPlayerData(player)
+	if not data then
+		return
+	end
+	
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	
+	data.Character = character
+	data.Humanoid = humanoid
+	data.HumanoidRootPart = rootPart
+	
+	-- Reset state
+	data.CurrentState = Enums.CombatState.Idle
+	data.PreviousState = nil
+	data.ComboCount = 0
+	data.IsInvulnerable = false
+	data.IsStunned = false
+	data.IsBlocking = false
+	
+	-- Reset cooldowns
+	for action in pairs(data.Cooldowns) do
+		data.Cooldowns[action] = 0
+	end
+	
+	Logger:Info("Character references updated", {player = player.Name})
+end
+
+-- ========================================
+-- VALIDATION
+-- ========================================
+
+function PlayerDataManager:ValidatePlayerData(player: Player): boolean
+	local data = self:GetPlayerData(player)
+	if not data then
+		return false
+	end
+	
+	-- Check character validity
+	if not Utility.IsCharacterValid(data.Character) then
+		return false
+	end
+	
+	-- Check humanoid
+	if not data.Humanoid or data.Humanoid.Health <= 0 then
+		return false
+	end
+	
+	return true
+end
+
+-- ========================================
+-- CLEANUP
+-- ========================================
+
+function PlayerDataManager:Cleanup()
+	table.clear(self._playerData)
+	
+	Logger:Info("PlayerDataManager cleaned up")
+end
+
+return PlayerDataManager

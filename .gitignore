@@ -1,0 +1,101 @@
+# ===================================
+# ROBLOX STUDIO FILES
+# ===================================
+# Project place files (binarios grandes)
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+
+# Roblox Studio lock files
+*.rbxl.lock
+*.rbxlx.lock
+
+# ===================================
+# ROJO
+# ===================================
+# Sourcemap generado por Rojo
+sourcemap.json
+
+# ===================================
+# WALLY (Package Manager)
+# ===================================
+# Paquetes instalados
+/Packages/
+/ServerPackages/
+/DevPackages/
+
+# Lockfile (opcional: comentar si quieres versionarlo)
+wally.lock
+
+# ===================================
+# ROKIT (Toolchain Manager)
+# ===================================
+# Binarios de herramientas
+/.rokit/
+
+# ===================================
+# SISTEMA OPERATIVO
+# ===================================
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.stackdump
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.directory
+
+# ===================================
+# IDE / EDITORES
+# ===================================
+# VS Code
+.vscode/settings.json
+.vscode/launch.json
+.vscode/*.code-workspace
+
+# JetBrains (IntelliJ, etc.)
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ===================================
+# NODE.JS (si usas herramientas npm)
+# ===================================
+node_modules/
+package-lock.json
+yarn.lock
+
+# ===================================
+# TEMPORALES Y LOGS
+# ===================================
+*.log
+*.tmp
+*.temp
+*.cache
+*.bak
+*.swp
+*.swo
+*~
+
+# ===================================
+# BUILDS Y OUTPUTS
+# ===================================
+/build/
+/dist/
+/out/
+
+# ===================================
+# TESTING
+# ===================================
+/coverage/
+*.test.lua.snap

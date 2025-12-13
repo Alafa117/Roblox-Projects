@@ -1,0 +1,26 @@
+{
+  "name": "Roblox Proyectos",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Combat_System": {
+        "$path": "src/shared/Combat_System"
+      }
+    },
+
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}
