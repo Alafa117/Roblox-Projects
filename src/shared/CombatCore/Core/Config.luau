@@ -78,6 +78,32 @@ CombatConfig.System = {
 }
 
 -- ========================================
+-- DEBUG SETTINGS (Hitbox Visualization)
+-- ========================================
+
+CombatConfig.Debug = {
+	-- Master toggle for hitbox visualization
+	ShowHitboxes = true, -- Set to false in production
+	
+	-- Hitbox visualization settings
+	HitboxTransparency = 0.7, -- How transparent the hitbox is (0 = opaque, 1 = invisible)
+	HitboxDuration = 0.5, -- How long hitboxes stay visible (seconds)
+	
+	-- Color coding for different attack types
+	HitboxColors = {
+		LightAttack = Color3.fromRGB(100, 200, 255), -- Light blue
+		StrongAttack = Color3.fromRGB(255, 100, 100), -- Red
+		Dash = Color3.fromRGB(100, 255, 100), -- Green
+		Slide = Color3.fromRGB(255, 200, 100), -- Orange
+	},
+	
+	-- Show additional info
+	ShowHitboxOrigin = true, -- Show center point of hitbox
+	ShowHitDirection = true, -- Show arrow indicating attack direction
+	ShowHitRange = true, -- Show detection range sphere
+}
+
+-- ========================================
 -- ANIMATION IDS (Replace with your animation IDs)
 -- ========================================
 

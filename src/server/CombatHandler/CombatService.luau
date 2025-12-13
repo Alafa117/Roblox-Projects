@@ -288,6 +288,12 @@ function CombatService:_ProcessLightAttack(player: Player, data: {[string]: any}
 	-- Cooldown activates IMMEDIATELY (general cooldown, independent of hit/miss)
 	PlayerDataManager:SetCooldown(player, Enums.ActionType.M1, os.clock())
 	
+	-- Check if attack cancelled movement
+	local cancelledMovement = data.CancelledMovement or false
+	if cancelledMovement then
+		DebugLogger.ServerMechanicExecution("LightAttack", player.Name, "Cancelled movement for attack")
+	end
+	
 	-- Handle combo
 	local comboCount = data.ComboCount or 1
 	local timeSinceLastAttack = os.clock() - (PlayerDataManager:GetPlayerData(player).LastAttackTime or 0)
@@ -343,6 +349,12 @@ function CombatService:_ProcessStrongAttack(player: Player, _data: {[string]: an
 	if not validationResult.Success then
 		DebugLogger.ServerValidationFailed(player.Name, "StrongAttack", validationResult.ErrorMessage or "Unknown")
 		return validationResult
+	end
+	
+	-- Check if attack cancelled movement
+	local cancelledMovement = _data.CancelledMovement or false
+	if cancelledMovement then
+		DebugLogger.ServerMechanicExecution("StrongAttack", player.Name, "Cancelled movement for attack")
 	end
 	
 	-- Update player state
@@ -530,13 +542,26 @@ function CombatService:_ValidateAction(player: Player, actionType: string): Type
 		return {Success = false, ErrorMessage = "Player is dead", ErrorCode = "DEAD"}
 	end
 	
-	-- Check if already performing action (M1 can combo during Attacking)
+	-- Check if already performing action
 	if actionType == Enums.ActionType.M1 then
-		-- M1 allowed during Idle, Blocking, or Attacking (for combos)
-		if currentState ~= Enums.CombatState.Idle and currentState ~= Enums.CombatState.Blocking and currentState ~= Enums.CombatState.Attacking then
+		-- M1 allowed during: Idle, Blocking, Attacking (combos), Dashing (cancel), Sliding (cancel)
+		if currentState ~= Enums.CombatState.Idle 
+			and currentState ~= Enums.CombatState.Blocking 
+			and currentState ~= Enums.CombatState.Attacking
+			and currentState ~= Enums.CombatState.Dashing
+			and currentState ~= Enums.CombatState.Sliding then
+			return {Success = false, ErrorMessage = "Already performing action", ErrorCode = "BUSY"}
+		end
+	elseif actionType == Enums.ActionType.M2 then
+		-- M2 allowed during: Idle, Blocking, Dashing (cancel), Sliding (cancel)
+		if currentState ~= Enums.CombatState.Idle 
+			and currentState ~= Enums.CombatState.Blocking
+			and currentState ~= Enums.CombatState.Dashing
+			and currentState ~= Enums.CombatState.Sliding then
 			return {Success = false, ErrorMessage = "Already performing action", ErrorCode = "BUSY"}
 		end
 	else
+		-- Other actions only allowed during Idle or Blocking
 		if currentState ~= Enums.CombatState.Idle and currentState ~= Enums.CombatState.Blocking then
 			return {Success = false, ErrorMessage = "Already performing action", ErrorCode = "BUSY"}
 		end

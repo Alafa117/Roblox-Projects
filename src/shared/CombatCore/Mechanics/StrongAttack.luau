@@ -32,6 +32,7 @@ local Types = require(Core.Types)
 local Logger = require(Core.Logger).GetInstance()
 local Utility = require(Core.Utility)
 local DebugLogger = require(Core.DebugLogger)
+local HitboxVisualizer = require(Core.HitboxVisualizer)
 
 -- Strong Attack Module
 local StrongAttack = {}
@@ -124,6 +125,18 @@ function StrongAttack:_DetectHits(attackData: Types.AttackData): {Player}
 	
 	-- Calculate hitbox origin (further in front for strong attack)
 	local origin = rootPart.Position + rootPart.CFrame.LookVector * 4
+	local direction = rootPart.CFrame.LookVector
+	
+	-- DEBUG: Visualize hitbox
+	if Config.Debug.ShowHitboxes then
+		HitboxVisualizer.ShowAttack(
+			origin,
+			direction,
+			attackData.HitboxSize,
+			attackData.Range,
+			"StrongAttack"
+		)
+	end
 	
 	-- Get players in hitbox (larger radius)
 	local hitPlayers = Utility.GetPlayersInRadius(origin, attackData.Range, {character})

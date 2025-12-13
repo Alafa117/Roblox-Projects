@@ -32,6 +32,7 @@ local Types = require(Core.Types)
 local Logger = require(Core.Logger).GetInstance()
 local Utility = require(Core.Utility)
 local DebugLogger = require(Core.DebugLogger)
+local HitboxVisualizer = require(Core.HitboxVisualizer)
 
 -- Light Attack Module
 local LightAttack = {}
@@ -137,6 +138,18 @@ function LightAttack:_DetectHits(attackData: Types.AttackData): {Player}
 	
 	-- Calculate hitbox origin (in front of player)
 	local origin = rootPart.Position + rootPart.CFrame.LookVector * 3
+	local direction = rootPart.CFrame.LookVector
+	
+	-- DEBUG: Visualize hitbox
+	if Config.Debug.ShowHitboxes then
+		HitboxVisualizer.ShowAttack(
+			origin,
+			direction,
+			attackData.HitboxSize,
+			attackData.Range,
+			"LightAttack"
+		)
+	end
 	
 	-- Get players in hitbox
 	local hitPlayers = Utility.GetPlayersInRadius(origin, attackData.Range, {character})

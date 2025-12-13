@@ -26,8 +26,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
+local Config = require(Core.Config)
 local Utility = require(Core.Utility)
 local DebugLogger = require(Core.DebugLogger)
+local HitboxVisualizer = require(Core.HitboxVisualizer)
 
 -- Constants
 local LocalPlayer = Players.LocalPlayer
@@ -169,6 +171,20 @@ function MovementController:StartDynamicMovement(movementType: string, config: M
 		originalWalkSpeed = originalWalkSpeed,
 		running = running
 	}
+	
+	-- Show hitbox visualization if enabled
+	if Config.Debug.ShowHitboxes then
+		local visualizationType = movementType == "Dash" and "Dash" or "Slide"
+		local visualRange = config.Speed * config.Duration -- Approximate travel distance
+		HitboxVisualizer.ShowAttack(
+			rootPart.Position,
+			initialDirection,
+			Vector3.new(3, 3, 3), -- Small hitbox size for visualization
+			visualRange,
+			visualizationType,
+			config.Duration
+		)
+	end
 	
 	-- Movement loop with friction
 	task.spawn(function()

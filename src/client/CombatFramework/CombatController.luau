@@ -351,24 +351,27 @@ end
 -- ACTION HANDLERS
 -- ========================================
 
--- Helper: Cancel active movement (Dash/Slide) if any
+-- Helper: Detect and cancel active movement (Dash/Slide) if any
+-- Returns movement type being cancelled ("Dash", "Slide", or nil)
 function CombatController:_CancelActiveMovement()
+	-- Check BOTH state AND MovementController to catch movement mid-execution
 	local wasDashing = self._currentState == Enums.CombatState.Dashing
 	local wasSliding = self._currentState == Enums.CombatState.Sliding
+	local hasActiveMovement = self._movementController:IsMoving()
 	
-	if wasDashing then
+	if hasActiveMovement or wasDashing then
 		DebugLogger.ClientAction("Movement", "Cancelled Dash")
 		self._movementController:StopMovement()
 		self._networkManager:SendToServer(Enums.NetworkEvent.CancelDash, {})
-		return true
-	elseif wasSliding then
+		return "Dash"
+	elseif hasActiveMovement or wasSliding then
 		DebugLogger.ClientAction("Movement", "Cancelled Slide")
 		self._movementController:StopMovement()
 		self._networkManager:SendToServer(Enums.NetworkEvent.CancelSlide, {})
-		return true
+		return "Slide"
 	end
 	
-	return false
+	return nil
 end
 
 function CombatController:_HandleLightAttack()
@@ -377,6 +380,11 @@ function CombatController:_HandleLightAttack()
 		self._inputBuffering:AddInput(Enums.ActionType.M1)
 		return
 	end
+	
+	-- IMPORTANT: Detect movement BEFORE changing state
+	local wasDashing = self._currentState == Enums.CombatState.Dashing
+	local wasSliding = self._currentState == Enums.CombatState.Sliding
+	local cancelledMovement = wasDashing or wasSliding
 	
 	-- Check combo window
 	local timeSinceLastAttack = os.clock() - self._lastAttackTime
@@ -397,17 +405,20 @@ function CombatController:_HandleLightAttack()
 		self._animationManager:PlayAttackAnimation(Enums.AttackType.LightAttack, self._comboCount)
 	end
 	
-	-- Send to server
-	DebugLogger.ClientAction("M1 Request", string.format("Combo: %d", self._comboCount))
+	-- Send to server with movement cancellation info
+	DebugLogger.ClientAction("M1 Request", string.format("Combo: %d, CancelledMovement: %s", self._comboCount, tostring(cancelledMovement)))
 	self._networkManager:SendToServer(Enums.NetworkEvent.RequestAction, {
 		ActionType = Enums.ActionType.M1,
 		ComboCount = self._comboCount,
+		CancelledMovement = cancelledMovement, -- Tell server we were moving
 	})
 	
-	-- Cancel movement AFTER sending attack for instant hit detection
-	self:_CancelActiveMovement()
+	-- Cancel movement AFTER sending attack (server knows we were moving)
+	if cancelledMovement then
+		self:_CancelActiveMovement()
+	end
 	
-	Logger:Debug("Light attack requested", {combo = self._comboCount})
+	Logger:Debug("Light attack requested", {combo = self._comboCount, cancelledMovement = cancelledMovement})
 end
 
 function CombatController:_HandleStrongAttack()
@@ -417,6 +428,11 @@ function CombatController:_HandleStrongAttack()
 		DebugLogger.ClientValidationFailed("M2", "Cannot perform action")
 		return
 	end
+	
+	-- IMPORTANT: Detect movement BEFORE changing state
+	local wasDashing = self._currentState == Enums.CombatState.Dashing
+	local wasSliding = self._currentState == Enums.CombatState.Sliding
+	local cancelledMovement = wasDashing or wasSliding
 	
 	-- Update state FIRST for instant attack
 	self._stateManager:HandleStrongAttackState()
@@ -432,16 +448,19 @@ function CombatController:_HandleStrongAttack()
 		self._animationManager:PlayAttackAnimation(Enums.AttackType.StrongAttack)
 	end
 	
-	-- Send to server (no charge duration needed)
-	DebugLogger.ClientAction("M2 Request", "Instant attack")
+	-- Send to server with movement cancellation info
+	DebugLogger.ClientAction("M2 Request", string.format("Instant attack, CancelledMovement: %s", tostring(cancelledMovement)))
 	self._networkManager:SendToServer(Enums.NetworkEvent.RequestAction, {
 		ActionType = Enums.ActionType.M2,
+		CancelledMovement = cancelledMovement, -- Tell server we were moving
 	})
 	
-	-- Cancel movement AFTER sending attack for instant hit detection
-	self:_CancelActiveMovement()
+	-- Cancel movement AFTER sending attack (server knows we were moving)
+	if cancelledMovement then
+		self:_CancelActiveMovement()
+	end
 	
-	Logger:Debug("Strong attack requested")
+	Logger:Debug("Strong attack requested", {cancelledMovement = cancelledMovement})
 end
 
 function CombatController:_HandleDash(direction: string)
