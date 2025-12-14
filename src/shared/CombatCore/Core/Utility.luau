@@ -1,28 +1,31 @@
 --[[
 	Module: CombatUtility
-	Type: Utility Module (Legacy Wrapper)
+	Type: Utility Module (Legacy Facade)
 	Location: ReplicatedStorage.CombatCore.Core.Utility
 	Path: src/shared/CombatCore/Core/Utility.luau
 	
 	Description:
-		Centralized utility module for combat system operations.
-		Delegates some operations to specialized helper modules:
-		- ValidationHelper for character/state validation
-		- PhysicsHelper for knockback/ragdoll physics
+		Facade module that delegates to specialized helper modules.
+		Maintains backward compatibility while promoting clean architecture.
 		
-		Provides spatial calculations, hit detection, and utility functions.
+		Delegates to:
+		- ValidationHelper: Character/state validation, cooldowns
+		- PhysicsHelper: Knockback, ragdoll effects
+		- SpatialHelper: Distance, direction, hitbox detection
+		
+	Migration Note:
+		New code should use specialized helpers directly for better clarity.
+		This module exists for backward compatibility with existing code.
 	
 	Author: Professional Roblox Scripter
 	Created: December 9, 2025
-	Refactored: December 11, 2025
+	Refactored: December 14, 2025 - Extracted SpatialHelper
 --]]
-
--- Services
-local Players = game:GetService("Players")
 
 -- Module Imports
 local ValidationHelper = require(script.Parent.ValidationHelper)
 local PhysicsHelper = require(script.Parent.PhysicsHelper)
+local SpatialHelper = require(script.Parent.SpatialHelper)
 
 -- Utility Module (Legacy Wrapper)
 local Utility = {}
@@ -64,81 +67,19 @@ function Utility.IsR6Character(character: Model): boolean
 end
 
 -- ========================================
--- DISTANCE & POSITIONING
+-- SPATIAL CALCULATIONS (delegates to SpatialHelper)
 -- ========================================
 
--- Gets direction vector from one character to another
 function Utility.GetDirectionTo(fromChar: Model, toChar: Model): Vector3?
-	local fromRoot = Utility.GetRootPart(fromChar)
-	local toRoot = Utility.GetRootPart(toChar)
-	
-	if not fromRoot or not toRoot then
-		return nil
-	end
-	
-	return (toRoot.Position - fromRoot.Position).Unit
+	return SpatialHelper.GetDirectionTo(fromChar, toChar)
 end
 
--- Checks if target is in front of attacker
 function Utility.IsInFront(attacker: Model, target: Model, maxAngle: number?): boolean
-	maxAngle = maxAngle or 90 -- Default 90 degrees
-	
-	local attackerRoot = Utility.GetRootPart(attacker)
-	local targetRoot = Utility.GetRootPart(target)
-	
-	if not attackerRoot or not targetRoot then
-		return false
-	end
-	
-	local direction = (targetRoot.Position - attackerRoot.Position).Unit
-	local lookVector = attackerRoot.CFrame.LookVector
-	
-	local dotProduct = direction:Dot(lookVector)
-	local angle = math.deg(math.acos(dotProduct))
-	
-	return angle <= maxAngle
+	return SpatialHelper.IsInFront(attacker, target, maxAngle)
 end
 
--- ========================================
--- HITBOX DETECTION
--- ========================================
-
--- Performs spherical hitbox detection (more optimized)
--- NOTE: Returns characters (Model), not just players - works with NPCs/Dummies too
 function Utility.GetPlayersInRadius(origin: Vector3, radius: number, ignore: any): {Player | Model}
-	local hitResults = {}
-	
-	local overlapParams = OverlapParams.new()
-	overlapParams.FilterDescendantsInstances = ignore or {}
-	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-	
-	local partsInRadius = workspace:GetPartBoundsInRadius(origin, radius, overlapParams)
-	
-	local checkedCharacters = {}
-	for _, part in ipairs(partsInRadius) do
-		local character = part.Parent
-		if character and not checkedCharacters[character] then
-			checkedCharacters[character] = true
-			
-			-- Check if it's a valid character (player OR NPC/Dummy)
-			if Utility.IsCharacterValid(character) then
-				local rootPart = Utility.GetRootPart(character)
-				if rootPart and (rootPart.Position - origin).Magnitude <= radius then
-					-- Try to get player, but also accept NPCs
-					local player = Players:GetPlayerFromCharacter(character)
-					if player then
-						table.insert(hitResults, player)
-					else
-						-- It's an NPC/Dummy - add it as a "fake player" with character reference
-						-- This allows damage to work on NPCs
-						table.insert(hitResults, character)
-					end
-				end
-			end
-		end
-	end
-	
-	return hitResults
+	return SpatialHelper.GetPlayersInRadius(origin, radius, ignore)
 end
 
 -- ========================================

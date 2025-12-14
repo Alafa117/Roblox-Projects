@@ -20,6 +20,7 @@
 -- Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ServerScriptService = game:GetService("ServerScriptService")
 
 -- Module Imports
 local RS = ReplicatedStorage
@@ -35,7 +36,8 @@ local Utility = require(Core.Utility)
 local DebugLogger = require(Core.DebugLogger)
 local HitboxVisualizer = require(Core.HitboxVisualizer)
 
-local AttackHelper = require(script.Parent.AttackHelper)
+-- Server-side helper (Phase 1 - Refactored location)
+local AttackHelper = require(ServerScriptService.CombatHandler.Helpers.AttackHelper)
 
 -- Movement mechanics for cancellation
 local Dash = require(Mechanics.Dash)
