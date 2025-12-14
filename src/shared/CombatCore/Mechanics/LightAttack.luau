@@ -25,6 +25,7 @@ local RunService = game:GetService("RunService")
 local RS = ReplicatedStorage
 local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
+local Mechanics = CombatSystem:WaitForChild("Mechanics")
 
 local Config = require(Core.Config)
 local Enums = require(Core.Enums)
@@ -33,6 +34,10 @@ local Logger = require(Core.Logger).GetInstance()
 local Utility = require(Core.Utility)
 local DebugLogger = require(Core.DebugLogger)
 local HitboxVisualizer = require(Core.HitboxVisualizer)
+
+-- Movement mechanics for cancellation
+local Dash = require(Mechanics.Dash)
+local Slide = require(Mechanics.Slide)
 
 -- Light Attack Module
 local LightAttack = {}
@@ -54,6 +59,10 @@ function LightAttack:Execute(player: Player, data: {[string]: any})
 		Logger:Warning("LightAttack can only be executed on server")
 		return
 	end
+	
+	-- Cancel active movement mechanics (Dash/Slide)
+	Dash:CancelDash(player)
+	Slide:CancelSlide(player)
 	
 	local character = player.Character
 	if not Utility.IsCharacterValid(character) then

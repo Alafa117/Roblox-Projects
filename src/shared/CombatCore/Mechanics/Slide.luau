@@ -94,7 +94,10 @@ function Slide:CancelSlide(player: Player)
 	-- Cancel validation thread if exists
 	local startData = SlideStartPositions[player]
 	if startData and startData.Thread then
-		task.cancel(startData.Thread)
+		pcall(function()
+			task.cancel(startData.Thread)
+		end)
+		-- Ignore errors - thread may have already completed
 	end
 	
 	-- Clean up tracking data

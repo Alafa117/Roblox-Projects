@@ -246,26 +246,36 @@ end
 function MovementController:StopMovement()
 	if not self._activeMovement then return end
 	
-	-- Stop loop
+	-- Store references before clearing
+	local bodyVelocity = self._activeMovement.bodyVelocity
+	local humanoid = self._activeMovement.humanoid
+	local originalWalkSpeed = self._activeMovement.originalWalkSpeed
+	
+	-- Stop loop (signal to thread to exit)
 	self._activeMovement.running = false
 	
-	-- Cancel thread if still running
+	-- Cancel thread if still running (give it a moment to detect running = false)
 	if self._movementThread then
-		task.cancel(self._movementThread)
+		task.wait(0.01) -- Small delay to let loop detect running = false
+		pcall(function()
+			task.cancel(self._movementThread)
+		end)
+		-- Ignore errors - thread may have already completed
 		self._movementThread = nil
 	end
 	
-	-- Cleanup
-	if self._activeMovement.bodyVelocity and self._activeMovement.bodyVelocity.Parent then
-		self._activeMovement.bodyVelocity:Destroy()
+	-- Cleanup BodyVelocity
+	if bodyVelocity and bodyVelocity.Parent then
+		bodyVelocity:Destroy()
 	end
 	
 	-- Restore humanoid
-	if self._activeMovement.humanoid then
-		self._activeMovement.humanoid.AutoRotate = true
-		self._activeMovement.humanoid.WalkSpeed = self._activeMovement.originalWalkSpeed
+	if humanoid then
+		humanoid.AutoRotate = true
+		humanoid.WalkSpeed = originalWalkSpeed
 	end
 	
+	-- Clear active movement last
 	self._activeMovement = nil
 end
 

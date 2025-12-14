@@ -121,7 +121,11 @@ function PhysicsHelper.RemoveRagdoll(character: Model)
 	
 	-- Cancel pending thread if exists
 	if characterRagdollData.Thread then
-		task.cancel(characterRagdollData.Thread)
+		pcall(function()
+			task.cancel(characterRagdollData.Thread)
+		end)
+		-- Ignore errors - thread may have already completed
+		characterRagdollData.Thread = nil
 	end
 	
 	local humanoid = character:FindFirstChildOfClass("Humanoid")

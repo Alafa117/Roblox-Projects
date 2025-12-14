@@ -108,7 +108,12 @@ function StateManager:SetState(newState: string, actionType: string?)
 		for action, timer in pairs(self._activeStateTimers) do
 			local expectedState = self:_GetExpectedStateForAction(action)
 			if expectedState == oldState then
-				task.cancel(timer)
+				local success = pcall(function()
+					task.cancel(timer)
+				end)
+				if not success then
+					Logger:Debug("Timer already completed", {action = action})
+				end
 				self._activeStateTimers[action] = nil
 			end
 		end
@@ -148,7 +153,12 @@ end
 function StateManager:ScheduleStateReset(actionType: string, duration: number)
 	-- Cancel any existing timer for this action to prevent double resets
 	if self._activeStateTimers[actionType] then
-		task.cancel(self._activeStateTimers[actionType])
+		local success = pcall(function()
+			task.cancel(self._activeStateTimers[actionType])
+		end)
+		if not success then
+			Logger:Debug("Timer already completed", {action = actionType})
+		end
 		self._activeStateTimers[actionType] = nil
 	end
 	
@@ -201,8 +211,9 @@ end
 function StateManager:HandleLightAttackState()
 	self:SetState(Enums.CombatState.Attacking, Enums.ActionType.M1)
 	
-	-- Reset after animation duration (use Config cooldown as reference)
-	local resetTime = Config.LightAttack.Cooldown * 0.8 -- 80% of cooldown
+	-- Reset after combo window expires (allow full combo timing)
+	-- Use ComboWindow instead of Cooldown to prevent premature state reset during combos
+	local resetTime = Config.LightAttack.ComboWindow + 0.1 -- ComboWindow + small buffer
 	self:ScheduleStateReset(Enums.ActionType.M1, resetTime)
 end
 
