@@ -137,6 +137,13 @@ function VisualEffectsController:RemoveEffect(effectName: string)
 end
 
 function VisualEffectsController:ClearAllEffects()
+	-- Cancel all active threads
+	for _, thread in ipairs(self._activeThreads) do
+		pcall(task.cancel, thread)
+	end
+	table.clear(self._activeThreads)
+	
+	-- Clear all effects
 	for _, effect in pairs(self._activeEffects) do
 		if effect and effect.Parent then
 			effect:Destroy()
@@ -150,13 +157,7 @@ end
 -- ========================================
 
 function VisualEffectsController:Destroy()
-	-- Cancel all active threads
-	for _, thread in ipairs(self._activeThreads) do
-		task.cancel(thread)
-	end
-	table.clear(self._activeThreads)
-	
-	-- Clear all effects
+	-- ClearAllEffects handles thread cancellation and cleanup
 	self:ClearAllEffects()
 end
 

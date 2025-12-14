@@ -85,75 +85,53 @@ end
 -- ========================================
 
 function InputHandler:Initialize()
-	if self._enabled then
-		Logger:Warning("InputHandler already initialized")
-		return
-	end
-	
+	if self._enabled then return end
 	self._enabled = true
 	
-	-- Bind M1 (Light Attack) - Mouse Button 1
-	self:_BindAction(
-		"CombatM1",
-		Enum.KeyCode.ButtonR2, -- For controllers
-		function(_actionName, inputState, inputObject)
-			self:_HandleM1Input(inputState, inputObject)
-		end
-	)
-	
-	-- Bind mouse buttons (M1 and M2) in a single listener to avoid duplication
+	-- Mouse/Controller M1/M2
 	local inputBeganConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
-		
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			self:_HandleM1Input(Enum.UserInputState.Begin, input)
+			self:_TriggerAction(Enums.ActionType.M1, Enum.UserInputState.Begin, input)
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-			self:_HandleM2Input(Enum.UserInputState.Begin, input)
+			self:_TriggerAction(Enums.ActionType.M2, Enum.UserInputState.Begin, input)
 		end
 	end)
 	table.insert(self._connections, inputBeganConnection)
 	
-	-- Bind Q (Dash)
-	self:_BindAction(
-		"CombatDash",
-		Enum.KeyCode.Q,
-		function(_actionName, inputState, inputObject)
-			if inputState == Enum.UserInputState.Begin then
-				self:_TriggerAction(Enums.ActionType.Q, inputState, inputObject)
-			end
+	-- Keyboard bindings
+	self:_BindAction("CombatM1", Enum.KeyCode.ButtonR2, function(_, state, obj)
+		if state == Enum.UserInputState.Begin then
+			self:_TriggerAction(Enums.ActionType.M1, state, obj)
 		end
-	)
+	end)
 	
-	-- Bind C (Slide)
-	self:_BindAction(
-		"CombatSlide",
-		Enum.KeyCode.C,
-		function(_actionName, inputState, inputObject)
-			if inputState == Enum.UserInputState.Begin then
-				self:_TriggerAction(Enums.ActionType.C, inputState, inputObject)
-			end
+	self:_BindAction("CombatDash", Enum.KeyCode.Q, function(_, state, obj)
+		if state == Enum.UserInputState.Begin then
+			self:_TriggerAction(Enums.ActionType.Q, state, obj)
 		end
-	)
+	end)
 	
-	-- Bind F (Block) - Hold to block
-	self:_BindAction(
-		"CombatBlock",
-		Enum.KeyCode.F,
-		function(_actionName, inputState, inputObject)
-			self:_HandleBlockInput(inputState, inputObject)
+	self:_BindAction("CombatSlide", Enum.KeyCode.C, function(_, state, obj)
+		if state == Enum.UserInputState.Begin then
+			self:_TriggerAction(Enums.ActionType.C, state, obj)
 		end
-	)
+	end)
 	
-	-- Mobile touch support for M1
+	self:_BindAction("CombatBlock", Enum.KeyCode.F, function(_, state, obj)
+		self._inputStates[Enums.ActionType.F] = (state == Enum.UserInputState.Begin)
+		self:_TriggerAction(Enums.ActionType.F, state, obj)
+	end)
+	
+	-- Mobile touch
 	if UserInputService.TouchEnabled then
-		local touchTapConnection = UserInputService.TouchTap:Connect(function(_touchPositions, gameProcessed)
-			if gameProcessed then return end
-			self:_HandleM1Input(Enum.UserInputState.Begin, nil)
+		local touchConnection = UserInputService.TouchTap:Connect(function(_, gameProcessed)
+			if not gameProcessed then
+				self:_TriggerAction(Enums.ActionType.M1, Enum.UserInputState.Begin, nil)
+			end
 		end)
-		table.insert(self._connections, touchTapConnection)
+		table.insert(self._connections, touchConnection)
 	end
-	
-	Logger:Info("InputHandler bindings initialized")
 end
 
 -- ========================================
@@ -172,75 +150,28 @@ function InputHandler:_BindAction(actionName: string, keyCode: Enum.KeyCode, cal
 end
 
 -- ========================================
--- INPUT HANDLERS
--- ========================================
-
-function InputHandler:_HandleM1Input(inputState: Enum.UserInputState, inputObject: InputObject?)
-	if inputState == Enum.UserInputState.Begin then
-		self:_TriggerAction(Enums.ActionType.M1, inputState, inputObject)
-	end
-end
-
-function InputHandler:_HandleM2Input(inputState: Enum.UserInputState, inputObject: InputObject?)
-	if inputState == Enum.UserInputState.Begin then
-		self:_TriggerAction(Enums.ActionType.M2, inputState, inputObject)
-	end
-end
-
-function InputHandler:_HandleBlockInput(inputState: Enum.UserInputState, inputObject: InputObject?)
-	if inputState == Enum.UserInputState.Begin then
-		self._inputStates[Enums.ActionType.F] = true
-		self:_TriggerAction(Enums.ActionType.F, Enum.UserInputState.Begin, inputObject)
-		
-	elseif inputState == Enum.UserInputState.End then
-		self._inputStates[Enums.ActionType.F] = false
-		self:_TriggerAction(Enums.ActionType.F, Enum.UserInputState.End, inputObject)
-	end
-end
-
--- ========================================
 -- ACTION TRIGGERING
 -- ========================================
 
 function InputHandler:_TriggerAction(actionType: string, inputState: Enum.UserInputState, inputObject: InputObject?)
-	if not self._enabled then
-		return
-	end
+	if not self._enabled or self._blockedInputs[actionType] then return end
 	
-	-- Debouncing: ignore duplicate inputs within 100ms
+	-- Debounce
 	local now = os.clock()
-	local lastTime = self._lastInputTime[actionType] or 0
-	if now - lastTime < INPUT_DEBOUNCE_TIME then
-		-- Silently ignore duplicate input
-		return
-	end
+	if now - (self._lastInputTime[actionType] or 0) < INPUT_DEBOUNCE_TIME then return end
 	self._lastInputTime[actionType] = now
 	
-	-- Check if input is blocked
-	if self._blockedInputs[actionType] then
-		Logger:Debug("Input blocked", {action = actionType})
-		return
-	end
-	
-	-- Update input state
+	-- Update state
 	self._inputStates[actionType] = (inputState == Enum.UserInputState.Begin)
 	
-	-- Get movement direction for directional abilities
-	local movementDirection = self:_GetMovementDirection()
-	
-	-- Trigger all registered callbacks synchronously
+	-- Trigger callbacks
 	local callbacks = self._callbacks[actionType]
 	if callbacks then
+		local direction = self:_GetMovementDirection()
 		for _, callback in ipairs(callbacks) do
-			callback(actionType, inputState, inputObject, movementDirection)
+			callback(actionType, inputState, inputObject, direction)
 		end
 	end
-	
-	Logger:Debug("Input triggered", {
-		action = actionType,
-		state = tostring(inputState),
-		direction = movementDirection
-	})
 end
 
 -- ========================================
@@ -248,24 +179,11 @@ end
 -- ========================================
 
 function InputHandler:_GetMovementDirection(): string
-	-- Check WASD keys for directional input
-	local moveForward = UserInputService:IsKeyDown(Enum.KeyCode.W)
-	local moveBackward = UserInputService:IsKeyDown(Enum.KeyCode.S)
-	local moveLeft = UserInputService:IsKeyDown(Enum.KeyCode.A)
-	local moveRight = UserInputService:IsKeyDown(Enum.KeyCode.D)
-	
-	-- Priority: Forward > Backward > Left > Right
-	if moveForward then
-		return Enums.Direction.Forward
-	elseif moveBackward then
-		return Enums.Direction.Backward
-	elseif moveLeft then
-		return Enums.Direction.Left
-	elseif moveRight then
-		return Enums.Direction.Right
-	end
-	
-	return Enums.Direction.Forward -- Default
+	if UserInputService:IsKeyDown(Enum.KeyCode.W) then return Enums.Direction.Forward end
+	if UserInputService:IsKeyDown(Enum.KeyCode.S) then return Enums.Direction.Backward end
+	if UserInputService:IsKeyDown(Enum.KeyCode.A) then return Enums.Direction.Left end
+	if UserInputService:IsKeyDown(Enum.KeyCode.D) then return Enums.Direction.Right end
+	return Enums.Direction.Forward
 end
 
 -- ========================================
@@ -273,13 +191,9 @@ end
 -- ========================================
 
 function InputHandler:RegisterCallback(actionType: string, callback: InputCallback)
-	if not self._callbacks[actionType] then
-		Logger:Warning("Invalid action type", {action = actionType})
-		return
+	if self._callbacks[actionType] then
+		table.insert(self._callbacks[actionType], callback)
 	end
-	
-	table.insert(self._callbacks[actionType], callback)
-	Logger:Debug("Callback registered", {action = actionType})
 end
 
 -- ========================================
@@ -290,8 +204,6 @@ function InputHandler:BlockAllInputs(blocked: boolean)
 	for actionType in pairs(self._blockedInputs) do
 		self._blockedInputs[actionType] = blocked
 	end
-	
-	Logger:Info("All inputs blocked", {blocked = blocked})
 end
 
 -- ========================================
@@ -301,25 +213,19 @@ end
 function InputHandler:Destroy()
 	self._enabled = false
 	
-	-- Unbind all actions
-	ContextActionService:UnbindAction("CombatM1")
-	ContextActionService:UnbindAction("CombatDash")
-	ContextActionService:UnbindAction("CombatSlide")
-	ContextActionService:UnbindAction("CombatBlock")
-	
-	-- Disconnect all connections
 	for _, connection in ipairs(self._connections) do
 		connection:Disconnect()
 	end
-	table.clear(self._connections)
 	
-	-- Clear callbacks
+	for _, action in ipairs({"CombatM1", "CombatDash", "CombatSlide", "CombatBlock"}) do
+		ContextActionService:UnbindAction(action)
+	end
+	
 	table.clear(self._callbacks)
 	table.clear(self._inputStates)
 	table.clear(self._blockedInputs)
 	table.clear(self._lastInputTime)
-	
-	Logger:Info("InputHandler destroyed")
+	table.clear(self._connections)
 end
 
 return InputHandler

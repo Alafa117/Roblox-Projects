@@ -80,8 +80,6 @@ function StateManager.new(controller)
 	self._controller = controller
 	self._activeStateTimers = {} -- Track active timers by action type
 	
-	Logger:Debug("StateManager initialized")
-	
 	return self
 end
 
@@ -89,44 +87,22 @@ end
 -- STATE TRANSITIONS
 -- ========================================
 
-function StateManager:SetState(newState: string, actionType: string?)
+function StateManager:SetState(newState: string, _actionType: string?)
 	local oldState = self._controller._currentState
 	
-	-- Validate transition
-	if not self:_IsValidTransition(oldState, newState) then
-		Logger:Warning("Invalid state transition blocked", {
-			from = oldState,
-			to = newState,
-			action = actionType or "manual"
-		})
-		return false
-	end
+	if not self:_IsValidTransition(oldState, newState) then return false end
 	
-	-- Cancel timer for old state if transitioning away
+	-- Cancel old state timers
 	if oldState ~= newState and oldState ~= Enums.CombatState.Idle then
-		-- Cancel any active timer for the old state
 		for action, timer in pairs(self._activeStateTimers) do
-			local expectedState = self:_GetExpectedStateForAction(action)
-			if expectedState == oldState then
-				local success = pcall(function()
-					task.cancel(timer)
-				end)
-				if not success then
-					Logger:Debug("Timer already completed", {action = action})
-				end
+			if self:_GetExpectedStateForAction(action) == oldState then
+				pcall(task.cancel, timer)
 				self._activeStateTimers[action] = nil
 			end
 		end
 	end
 	
 	self._controller._currentState = newState
-	
-	Logger:Debug("State changed", {
-		from = oldState,
-		to = newState,
-		action = actionType or "manual"
-	})
-	
 	return true
 end
 
@@ -151,20 +127,11 @@ end
 -- ========================================
 
 function StateManager:ScheduleStateReset(actionType: string, duration: number)
-	-- Cancel any existing timer for this action to prevent double resets
 	if self._activeStateTimers[actionType] then
-		local success = pcall(function()
-			task.cancel(self._activeStateTimers[actionType])
-		end)
-		if not success then
-			Logger:Debug("Timer already completed", {action = actionType})
-		end
-		self._activeStateTimers[actionType] = nil
+		pcall(task.cancel, self._activeStateTimers[actionType])
 	end
 	
-	-- Schedule new reset
 	self._activeStateTimers[actionType] = task.delay(duration, function()
-		-- Check if timer wasn't cancelled
 		if self._activeStateTimers[actionType] then
 			self:_ResetStateIfMatches(actionType)
 			self._activeStateTimers[actionType] = nil
@@ -173,19 +140,11 @@ function StateManager:ScheduleStateReset(actionType: string, duration: number)
 end
 
 function StateManager:_ResetStateIfMatches(actionType: string)
-	local currentState = self._controller._currentState
-	local expectedState = self:_GetExpectedStateForAction(actionType)
+	local current = self._controller._currentState
+	local expected = self:_GetExpectedStateForAction(actionType)
 	
-	-- Only reset if we're still in the expected state and not already Idle
-	if currentState == expectedState and currentState ~= Enums.CombatState.Idle then
-		local success = self:SetState(Enums.CombatState.Idle, actionType)
-		
-		-- If SetState failed validation, force reset (duration expired = must reset)
-		if not success then
-			Logger:Warning("Forced state reset after duration", {
-				from = currentState,
-				action = actionType
-			})
+	if current == expected and current ~= Enums.CombatState.Idle then
+		if not self:SetState(Enums.CombatState.Idle, actionType) then
 			self._controller._currentState = Enums.CombatState.Idle
 		end
 	end
@@ -204,49 +163,56 @@ function StateManager:_GetExpectedStateForAction(actionType: string): string
 	return Enums.CombatState.Idle
 end
 
+-- State configuration lookup
+local STATE_CONFIG = {
+	[Enums.ActionType.M1] = {state = Enums.CombatState.Attacking, resetTime = function() return Config.LightAttack.ComboWindow + 0.1 end},
+	[Enums.ActionType.M2] = {state = Enums.CombatState.Attacking, resetTime = function() return Config.StrongAttack.StunDuration + 0.3 end},
+	[Enums.ActionType.Q] = {state = Enums.CombatState.Dashing, resetTime = function() return Config.Dash.Duration + 0.1 end},
+	[Enums.ActionType.C] = {state = Enums.CombatState.Sliding, resetTime = function() return Config.Slide.Duration + 0.1 end},
+	[Enums.ActionType.F] = {state = Enums.CombatState.Blocking},
+}
+
 -- ========================================
 -- ACTION-SPECIFIC STATE MANAGEMENT
 -- ========================================
 
-function StateManager:HandleLightAttackState()
-	self:SetState(Enums.CombatState.Attacking, Enums.ActionType.M1)
+function StateManager:HandleActionState(actionType: string, isEnd: boolean?)
+	local config = STATE_CONFIG[actionType]
+	if not config then return end
 	
-	-- Reset after combo window expires (allow full combo timing)
-	-- Use ComboWindow instead of Cooldown to prevent premature state reset during combos
-	local resetTime = Config.LightAttack.ComboWindow + 0.1 -- ComboWindow + small buffer
-	self:ScheduleStateReset(Enums.ActionType.M1, resetTime)
+	if isEnd then
+		self:SetState(Enums.CombatState.Idle, actionType)
+	else
+		self:SetState(config.state, actionType)
+		if config.resetTime then
+			self:ScheduleStateReset(actionType, config.resetTime())
+		end
+	end
+end
+
+-- Legacy compatibility wrappers
+function StateManager:HandleLightAttackState()
+	self:HandleActionState(Enums.ActionType.M1)
 end
 
 function StateManager:HandleStrongAttackState()
-	self:SetState(Enums.CombatState.Attacking, Enums.ActionType.M2)
-	
-	-- Reset after animation duration
-	local resetTime = Config.StrongAttack.StunDuration + 0.3 -- Stun + buffer
-	self:ScheduleStateReset(Enums.ActionType.M2, resetTime)
+	self:HandleActionState(Enums.ActionType.M2)
 end
 
 function StateManager:HandleDashState()
-	self:SetState(Enums.CombatState.Dashing, Enums.ActionType.Q)
-	
-	-- Reset after dash completes
-	local resetTime = Config.Dash.Duration + 0.1
-	self:ScheduleStateReset(Enums.ActionType.Q, resetTime)
+	self:HandleActionState(Enums.ActionType.Q)
 end
 
 function StateManager:HandleSlideState()
-	self:SetState(Enums.CombatState.Sliding, Enums.ActionType.C)
-	
-	-- Reset after slide completes
-	local resetTime = Config.Slide.Duration + 0.1
-	self:ScheduleStateReset(Enums.ActionType.C, resetTime)
+	self:HandleActionState(Enums.ActionType.C)
 end
 
 function StateManager:HandleBlockStartState()
-	self:SetState(Enums.CombatState.Blocking, Enums.ActionType.F)
+	self:HandleActionState(Enums.ActionType.F)
 end
 
 function StateManager:HandleBlockEndState()
-	self:SetState(Enums.CombatState.Idle, Enums.ActionType.F)
+	self:HandleActionState(Enums.ActionType.F, true)
 end
 
 -- ========================================
@@ -254,11 +220,10 @@ end
 -- ========================================
 
 function StateManager:CancelAllTimers()
-	for _actionType, timer in pairs(self._activeStateTimers) do
-		task.cancel(timer)
+	for _, timer in pairs(self._activeStateTimers) do
+		pcall(task.cancel, timer)
 	end
-	self._activeStateTimers = {}
-	Logger:Debug("All state timers cancelled")
+	table.clear(self._activeStateTimers)
 end
 
 function StateManager:Destroy()

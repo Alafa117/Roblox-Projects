@@ -116,7 +116,6 @@ end
 
 function InputBuffering:ClearBuffer()
 	table.clear(self._buffer)
-	Logger:Debug("Input buffer cleared")
 end
 
 -- ========================================

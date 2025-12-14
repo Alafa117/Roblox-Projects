@@ -21,7 +21,6 @@
 --]]
 
 -- Services
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -30,29 +29,20 @@ local RS = ReplicatedStorage
 local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
-local Config = require(Core.Config)
 local Enums = require(Core.Enums)
 local Logger = require(Core.Logger).GetInstance()
 local Utility = require(Core.Utility)
-local DebugLogger = require(Core.DebugLogger)
 
+local CharacterManager = require(script.Parent.CharacterManager)
+local CooldownManager = require(script.Parent.CooldownManager)
+local ComboManager = require(script.Parent.ComboManager)
+local AnimationController = require(script.Parent.AnimationController)
+local ActionHandler = require(script.Parent.ActionHandler)
 local InputHandler = require(script.Parent.InputHandler)
 local InputBuffering = require(script.Parent.InputBuffering)
 local StateManager = require(script.Parent.StateManager)
 local MovementController = require(script.Parent.MovementController)
 local VisualEffectsController = require(script.Parent.VisualEffectsController)
-
--- Constants
-local LocalPlayer = Players.LocalPlayer
-
--- Cooldown configuration lookup table (more efficient than if-elseif chain)
-local COOLDOWN_CONFIGS = {
-	[Enums.ActionType.M1] = function() return Config.LightAttack.Cooldown end,
-	[Enums.ActionType.M2] = function() return Config.StrongAttack.Cooldown end,
-	[Enums.ActionType.Q] = function() return Config.Dash.Cooldown end,
-	[Enums.ActionType.C] = function() return Config.Slide.Cooldown end,
-	[Enums.ActionType.F] = function() return Config.Block.Cooldown end,
-}
 
 -- Valid states for each action type
 local VALID_ACTION_STATES = {
@@ -90,26 +80,23 @@ CombatController.__index = CombatController
 -- ========================================
 
 type CombatController = {
+	_characterManager: any,
+	_cooldownManager: any,
+	_comboManager: any,
 	_inputHandler: any,
 	_inputBuffering: any,
 	_stateManager: any,
 	_movementController: any,
 	_visualEffects: any,
+	_animationController: any,
+	_actionHandler: any,
 	_networkManager: any?,
-	_animationManager: any?,
 	
 	_currentState: string,
-	_comboCount: number,
-	_lastAttackTime: number,
 	
-	_cooldowns: {[string]: number},
 	_connections: {RBXScriptConnection},
 	_isInitialized: boolean,
 	_enabled: boolean,
-	
-	Character: Model?,
-	Humanoid: Humanoid?,
-	HumanoidRootPart: BasePart?,
 }
 
 -- ========================================
@@ -120,24 +107,20 @@ function CombatController.new(): CombatController
 	local self = setmetatable({}, CombatController)
 	
 	-- Core Components
+	self._characterManager = CharacterManager.new()
+	self._cooldownManager = CooldownManager.new()
+	self._comboManager = ComboManager.new()
 	self._inputHandler = InputHandler.new()
 	self._inputBuffering = InputBuffering.new()
 	self._stateManager = StateManager.new(self)
 	self._movementController = MovementController.new()
 	self._visualEffects = VisualEffectsController.new()
+	self._animationController = AnimationController.new()
+	self._actionHandler = ActionHandler.new(self)
 	self._networkManager = nil
-	self._animationManager = nil
 	
 	-- State
 	self._currentState = Enums.CombatState.Idle
-	self._comboCount = 0
-	self._lastAttackTime = 0
-	
-	-- Cooldowns (dynamic initialization from Enums)
-	self._cooldowns = {}
-	for _, actionType in pairs(Enums.ActionType) do
-		self._cooldowns[actionType] = 0
-	end
 	
 	-- Event connections tracking
 	self._connections = {}
@@ -145,11 +128,6 @@ function CombatController.new(): CombatController
 	-- Flags
 	self._isInitialized = false
 	self._enabled = false
-	
-	-- Character References
-	self.Character = nil
-	self.Humanoid = nil
-	self.HumanoidRootPart = nil
 	
 	Logger:Info("CombatController created")
 	
@@ -161,74 +139,42 @@ end
 -- ========================================
 
 function CombatController:Initialize()
-	if self._isInitialized then
-		Logger:Warning("CombatController already initialized")
-		return
-	end
+	if self._isInitialized then return end
 	
-	-- Wait for character
-	self:_WaitForCharacter()
+	-- Character manager
+	self._characterManager:Initialize(
+		function(character) self:_OnCharacterAdded(character) end,
+		function() self:_OnCharacterDied() end
+	)
+	self._characterManager:WaitForCharacter()
 	
-	-- Initialize network manager
+	-- Network and ActionHandler
 	self:_InitializeNetworkManager()
+	self._actionHandler:Initialize({
+		stateManager = self._stateManager,
+		cooldownManager = self._cooldownManager,
+		animationController = self._animationController,
+		movementController = self._movementController,
+		visualEffects = self._visualEffects,
+		networkManager = self._networkManager,
+		inputBuffering = self._inputBuffering,
+		comboManager = self._comboManager,
+	})
 	
-	-- Initialize animation manager
-	self:_InitializeAnimationManager()
-	
-	-- Setup input callbacks
+	-- Input and update loop
 	self:_SetupInputCallbacks()
-	
-	-- Initialize input handler
 	self._inputHandler:Initialize()
-	
-	-- Start update loop
 	self:_StartUpdateLoop()
 	
 	self._isInitialized = true
 	self._enabled = true
-	
-	Logger:Info("CombatController initialized successfully")
 end
 
 -- ========================================
 -- CHARACTER SETUP
 -- ========================================
 
-function CombatController:_WaitForCharacter()
-	-- Wait for initial character
-	if not LocalPlayer.Character then
-		LocalPlayer.CharacterAdded:Wait()
-	end
-	
-	self:_OnCharacterAdded(LocalPlayer.Character)
-	
-	-- Listen for respawns
-	local characterAddedConnection = LocalPlayer.CharacterAdded:Connect(function(character)
-		self:_OnCharacterAdded(character)
-	end)
-	table.insert(self._connections, characterAddedConnection)
-end
-
 function CombatController:_OnCharacterAdded(character: Model)
-	-- Wait for humanoid
-	local humanoid = character:WaitForChild("Humanoid", 5)
-	local rootPart = character:WaitForChild("HumanoidRootPart", 5)
-	
-	if not humanoid or not rootPart then
-		Logger:Error("Failed to get character components")
-		return
-	end
-	
-	-- Verify R6
-	if not Utility.IsR6Character(character) then
-		Logger:Warning("Character is not R6, combat system may not work correctly")
-	end
-	
-	-- Update references
-	self.Character = character
-	self.Humanoid = humanoid
-	self.HumanoidRootPart = rootPart
-	
 	-- Clean up previous state
 	if self._movementController then
 		self._movementController:StopMovement()
@@ -243,18 +189,10 @@ function CombatController:_OnCharacterAdded(character: Model)
 	-- Reset state
 	self:_ResetState()
 	
-	-- Load animations
-	if self._animationManager then
-		self._animationManager:LoadAnimations(character)
-	end
+	-- Load animations for character
+	self._animationController:LoadAnimations(character)
 	
-	-- Listen for death (new connection per character is OK since old character is destroyed)
-	local diedConnection = humanoid.Died:Connect(function()
-		self:_OnCharacterDied()
-	end)
-	table.insert(self._connections, diedConnection)
-	
-	Logger:Info("Character loaded", {character = character.Name})
+	Logger:Info("CombatController ready for character", {character = character.Name})
 end
 
 function CombatController:_OnCharacterDied()
@@ -272,346 +210,65 @@ end
 -- ========================================
 
 function CombatController:_InitializeNetworkManager()
-	-- Wait for network manager
-	local networkManagerModule = CombatSystem:WaitForChild("Network"):WaitForChild("NetworkManager")
-	local NetworkManager = require(networkManagerModule)
-	
+	local NetworkManager = require(CombatSystem:WaitForChild("Network"):WaitForChild("NetworkManager"))
 	self._networkManager = NetworkManager.GetClientInstance()
 	
-	-- Register server callbacks using table for cleaner code
-	local networkCallbacks = {
-		[Enums.NetworkEvent.StateChanged] = function(newState)
-			self:_OnServerStateChanged(newState)
-		end,
-		[Enums.NetworkEvent.ActionResult] = function(result)
-			self:_OnActionResult(result)
-		end,
-		[Enums.NetworkEvent.TakeDamage] = function(damageData)
-			self:_OnTakeDamage(damageData)
-		end,
-		[Enums.NetworkEvent.ApplyKnockback] = function(knockbackData)
-			self:_OnApplyKnockback(knockbackData)
-		end,
-	}
-	
-	for eventType, callback in pairs(networkCallbacks) do
-		self._networkManager:RegisterCallback(eventType, callback)
-	end
-	
-	Logger:Debug("NetworkManager initialized")
+	-- Register callbacks
+	self._networkManager:RegisterCallback(Enums.NetworkEvent.StateChanged, function(data)
+		self:_OnServerStateChanged(data)
+	end)
+	self._networkManager:RegisterCallback(Enums.NetworkEvent.ActionResult, function(data)
+		self:_OnActionResult(data)
+	end)
+	self._networkManager:RegisterCallback(Enums.NetworkEvent.TakeDamage, function(data)
+		self:_OnTakeDamage(data)
+	end)
+	self._networkManager:RegisterCallback(Enums.NetworkEvent.ApplyKnockback, function(data)
+		self:_OnApplyKnockback(data)
+	end)
 end
-
--- ========================================
--- ANIMATION MANAGER SETUP
--- ========================================
-
-function CombatController:_InitializeAnimationManager()
-	-- Wait for animation manager
-	local animationModule = CombatSystem:WaitForChild("Animations"):WaitForChild("AnimationManager")
-	local AnimationManager = require(animationModule)
-	
-	self._animationManager = AnimationManager.new(self.Character)
-	
-	Logger:Debug("AnimationManager initialized")
-end
-
--- ========================================
--- INPUT CALLBACKS
--- ========================================
 
 function CombatController:_SetupInputCallbacks()
-	-- Register input callbacks using table for cleaner code
-	local inputCallbacks = {
-		[Enums.ActionType.M1] = function(_actionType, inputState)
-			if inputState == Enum.UserInputState.Begin then
-				self:_HandleLightAttack()
-			end
-		end,
-		
-		[Enums.ActionType.M2] = function(_actionType, inputState)
-			if inputState == Enum.UserInputState.Begin then
-				self:_HandleStrongAttack()
-			end
-		end,
-		
-		[Enums.ActionType.Q] = function(_actionType, inputState, _inputObject, direction)
-			DebugLogger.ClientAction("Dash callback", string.format("State: %s, Direction: %s", tostring(inputState), direction))
-			if inputState == Enum.UserInputState.Begin then
-				self:_HandleDash(direction)
-			end
-		end,
-		
-		[Enums.ActionType.C] = function(_actionType, inputState, _inputObject, direction)
-			DebugLogger.ClientAction("Slide callback", string.format("State: %s, Direction: %s", tostring(inputState), direction))
-			if inputState == Enum.UserInputState.Begin then
-				self:_HandleSlide(direction)
-			end
-		end,
-		
-		[Enums.ActionType.F] = function(_actionType, inputState)
-			if inputState == Enum.UserInputState.Begin then
-				self:_HandleBlockStart()
-			elseif inputState == Enum.UserInputState.End then
-				self:_HandleBlockEnd()
-			end
-		end,
-	}
+	-- M1/M2 attacks
+	self._inputHandler:RegisterCallback(Enums.ActionType.M1, function(_, state)
+		if state == Enum.UserInputState.Begin then
+			self._actionHandler:HandleLightAttack()
+		end
+	end)
+	self._inputHandler:RegisterCallback(Enums.ActionType.M2, function(_, state)
+		if state == Enum.UserInputState.Begin then
+			self._actionHandler:HandleStrongAttack()
+		end
+	end)
 	
-	for actionType, callback in pairs(inputCallbacks) do
-		self._inputHandler:RegisterCallback(actionType, callback)
-	end
+	-- Movement (Q/C) with direction
+	self._inputHandler:RegisterCallback(Enums.ActionType.Q, function(_, state, _, direction)
+		if state == Enum.UserInputState.Begin then
+			self._actionHandler:HandleDash(direction)
+		end
+	end)
+	self._inputHandler:RegisterCallback(Enums.ActionType.C, function(_, state, _, direction)
+		if state == Enum.UserInputState.Begin then
+			self._actionHandler:HandleSlide(direction)
+		end
+	end)
 	
-	Logger:Debug("Input callbacks registered")
+	-- Block (F) with Begin/End
+	self._inputHandler:RegisterCallback(Enums.ActionType.F, function(_, state)
+		if state == Enum.UserInputState.Begin then
+			self._actionHandler:HandleBlockStart()
+		elseif state == Enum.UserInputState.End then
+			self._actionHandler:HandleBlockEnd()
+		end
+	end)
 end
 
 -- ========================================
--- ACTION HANDLERS
+-- ACCESSOR METHODS (for ActionHandler)
 -- ========================================
 
--- Helper: Detect and cancel active movement (Dash/Slide) if any
--- Returns movement type being cancelled ("Dash", "Slide", or nil)
-function CombatController:_CancelActiveMovement()
-	-- Check if there's any active movement
-	local isMoving = self._movementController:IsMoving()
-	local wasDashing = self._currentState == Enums.CombatState.Dashing
-	local wasSliding = self._currentState == Enums.CombatState.Sliding
-	
-	-- Early exit if no movement
-	if not isMoving and not wasDashing and not wasSliding then
-		return nil
-	end
-	
-	-- Always stop the MovementController if it's active
-	if isMoving then
-		self._movementController:StopMovement()
-		DebugLogger.ClientAction("Movement", "Stopped MovementController")
-	end
-	
-	-- Send cancellation events based on state
-	if wasDashing then
-		DebugLogger.ClientAction("Movement", "Cancelled Dash")
-		self._networkManager:SendToServer(Enums.NetworkEvent.CancelDash, {})
-		return "Dash"
-	elseif wasSliding then
-		DebugLogger.ClientAction("Movement", "Cancelled Slide")
-		self._networkManager:SendToServer(Enums.NetworkEvent.CancelSlide, {})
-		return "Slide"
-	end
-	
-	-- Movement was active but state wasn't Dashing/Sliding (edge case)
-	if isMoving then
-		DebugLogger.ClientAction("Movement", "Cancelled unknown movement (state mismatch)")
-		return "Unknown"
-	end
-	
-	return nil
-end
-
-function CombatController:_HandleLightAttack()
-	-- Check if can attack
-	if not self:_CanPerformAction(Enums.ActionType.M1) then
-		self._inputBuffering:AddInput(Enums.ActionType.M1)
-		return
-	end
-	
-	-- IMPORTANT: Cancel movement FIRST (before state changes)
-	local wasDashing = self._currentState == Enums.CombatState.Dashing
-	local wasSliding = self._currentState == Enums.CombatState.Sliding
-	local wasMoving = self._movementController:IsMoving()
-	local cancelledMovement = wasDashing or wasSliding or wasMoving
-	
-	-- Cancel movement immediately if active
-	if wasMoving then
-		self:_CancelActiveMovement()
-		DebugLogger.ClientAction("M1", "Cancelled active movement")
-	end
-	
-	-- Check combo window
-	local timeSinceLastAttack = os.clock() - self._lastAttackTime
-	local isInComboWindow = timeSinceLastAttack <= Config.LightAttack.ComboWindow
-	
-	if isInComboWindow then
-		self._comboCount = math.min(self._comboCount + 1, Config.LightAttack.MaxComboCount)
-	else
-		self._comboCount = 1
-	end
-	
-	-- Update state using StateManager
-	self._stateManager:HandleLightAttackState()
-	self._lastAttackTime = os.clock()
-	
-	-- Cooldown logic: Only apply cooldown if NOT in combo or if it's the final hit
-	if not isInComboWindow or self._comboCount >= Config.LightAttack.MaxComboCount then
-		-- Starting new combo or finishing combo - apply cooldown
-		self._cooldowns[Enums.ActionType.M1] = os.clock()
-	else
-		-- In middle of combo - no cooldown, just clear it to allow next hit immediately
-		self._cooldowns[Enums.ActionType.M1] = 0
-	end
-	
-	-- Play animation locally (prediction)
-	if self._animationManager then
-		self._animationManager:PlayAttackAnimation(Enums.AttackType.LightAttack, self._comboCount)
-	end
-	
-	-- Send to server with movement cancellation info
-	DebugLogger.ClientAction("M1 Request", string.format("Combo: %d, CancelledMovement: %s", self._comboCount, tostring(cancelledMovement)))
-	self._networkManager:SendToServer(Enums.NetworkEvent.RequestAction, {
-		ActionType = Enums.ActionType.M1,
-		ComboCount = self._comboCount,
-		CancelledMovement = cancelledMovement,
-	})
-	
-	Logger:Debug("Light attack requested", {combo = self._comboCount, cancelledMovement = cancelledMovement})
-end
-
-function CombatController:_HandleStrongAttack()
-	DebugLogger.ClientAction("_HandleStrongAttack", "Called")
-	-- Check if can attack
-	if not self:_CanPerformAction(Enums.ActionType.M2) then
-		DebugLogger.ClientValidationFailed("M2", "Cannot perform action")
-		return
-	end
-	
-	-- IMPORTANT: Cancel movement FIRST (before state changes)
-	local wasDashing = self._currentState == Enums.CombatState.Dashing
-	local wasSliding = self._currentState == Enums.CombatState.Sliding
-	local wasMoving = self._movementController:IsMoving()
-	local cancelledMovement = wasDashing or wasSliding or wasMoving
-	
-	-- Cancel movement immediately if active
-	if wasMoving then
-		self:_CancelActiveMovement()
-		DebugLogger.ClientAction("M2", "Cancelled active movement")
-	end
-	
-	-- Update state FIRST for instant attack
-	self._stateManager:HandleStrongAttackState()
-	-- Cooldown activates IMMEDIATELY (regardless of hit/miss)
-	self._cooldowns[Enums.ActionType.M2] = os.clock()
-	self._comboCount = 0 -- Reset combo
-	
-	-- Apply M2 visual effect
-	self._visualEffects:ApplyStrongAttackEffect()
-	
-	-- Play animation locally
-	if self._animationManager then
-		self._animationManager:PlayAttackAnimation(Enums.AttackType.StrongAttack)
-	end
-	
-	-- Send to server with movement cancellation info
-	DebugLogger.ClientAction("M2 Request", string.format("Instant attack, CancelledMovement: %s", tostring(cancelledMovement)))
-	self._networkManager:SendToServer(Enums.NetworkEvent.RequestAction, {
-		ActionType = Enums.ActionType.M2,
-		CancelledMovement = cancelledMovement,
-	})
-	
-	Logger:Debug("Strong attack requested", {cancelledMovement = cancelledMovement})
-end
-
-function CombatController:_HandleDash(direction: string)
-	DebugLogger.ClientAction("_HandleDash", string.format("Direction: %s", direction))
-	-- Check if can dash
-	if not self:_CanPerformAction(Enums.ActionType.Q) then
-		DebugLogger.ClientValidationFailed("Dash", "Cannot perform action")
-		return
-	end
-	
-	-- Update state using StateManager
-	self._stateManager:HandleDashState()
-	self._cooldowns[Enums.ActionType.Q] = os.clock()
-	
-	-- Play animation locally
-	if self._animationManager then
-		self._animationManager:PlayDashAnimation(direction)
-	end
-	
-	-- Send to server (for validation/authority)
-	self._networkManager:SendToServer(Enums.NetworkEvent.RequestDash, {
-		Direction = direction,
-	})
-	
-	-- Start client-side dynamic movement
-	self._movementController:StartDynamicMovement("Dash", {
-		Speed = Config.Dash.Speed,
-		Duration = Config.Dash.Duration,
-		FrictionMultiplier = Config.Dash.FrictionMultiplier,
-	})
-	
-	Logger:Debug("Dash requested", {direction = direction})
-end
-
-function CombatController:_HandleSlide(direction: string)
-	DebugLogger.ClientAction("_HandleSlide", string.format("Direction: %s", direction))
-	-- Check if can slide
-	if not self:_CanPerformAction(Enums.ActionType.C) then
-		DebugLogger.ClientValidationFailed("Slide", "Cannot perform action")
-		return
-	end
-	
-	-- Update state using StateManager
-	self._stateManager:HandleSlideState()
-	self._cooldowns[Enums.ActionType.C] = os.clock()
-	
-	-- Play animation locally
-	if self._animationManager then
-		self._animationManager:PlaySlideAnimation()
-	end
-	
-	-- Send to server (for validation/authority)
-	DebugLogger.ClientAction("Slide Request", "Sent to server")
-	self._networkManager:SendToServer(Enums.NetworkEvent.RequestSlide, {
-		Direction = direction,
-	})
-	
-	-- Start client-side dynamic movement
-	self._movementController:StartDynamicMovement("Slide", {
-		Speed = Config.Slide.Speed,
-		Duration = Config.Slide.Duration,
-		FrictionMultiplier = Config.Slide.FrictionMultiplier,
-	})
-	
-	Logger:Debug("Slide requested")
-end
-
-function CombatController:_HandleBlockStart()
-	-- Check if can block
-	if not self:_CanPerformAction(Enums.ActionType.F) then
-		return
-	end
-	
-	-- Update state using StateManager
-	self._stateManager:HandleBlockStartState()
-	
-	-- Play animation locally
-	if self._animationManager then
-		self._animationManager:PlayBlockAnimation(true)
-	end
-	
-	-- Send to server
-	self._networkManager:SendToServer(Enums.NetworkEvent.RequestBlock, {
-		IsBlocking = true,
-	})
-	
-	Logger:Debug("Block started")
-end
-
-function CombatController:_HandleBlockEnd()
-	-- Update state using StateManager
-	self._stateManager:HandleBlockEndState()
-	self._cooldowns[Enums.ActionType.F] = os.clock()
-	
-	-- Stop animation
-	if self._animationManager then
-		self._animationManager:PlayBlockAnimation(false)
-	end
-	
-	-- Send to server
-	self._networkManager:SendToServer(Enums.NetworkEvent.RequestBlock, {
-		IsBlocking = false,
-	})
-	
-	Logger:Debug("Block ended")
+function CombatController:CanPerformAction(actionType: string): boolean
+	return self:_CanPerformAction(actionType)
 end
 
 -- ========================================
@@ -619,72 +276,30 @@ end
 -- ========================================
 
 function CombatController:_OnServerStateChanged(stateData)
-	-- Extract state from data (server sends {State = string})
-	local newState = stateData
-	if type(stateData) == "table" then
-		newState = stateData.State
-	end
-	
-	-- Validate that newState is a string
-	if type(newState) ~= "string" then
-		Logger:Error("Server sent invalid state", {
-			dataType = type(stateData),
-			stateType = type(newState),
-			data = tostring(stateData)
-		})
-		return
-	end
-	
-	-- Server has authority - bypass validation and set directly
-	self._currentState = newState
-	Logger:Debug("State changed by server", {state = newState})
-	
-	-- Block inputs based on state
-	if newState == Enums.CombatState.Stunned or newState == Enums.CombatState.Dead then
-		self._inputHandler:BlockAllInputs(true)
-	else
-		self._inputHandler:BlockAllInputs(false)
+	local newState = type(stateData) == "table" and stateData.State or stateData
+	if type(newState) == "string" then
+		self._currentState = newState
 	end
 end
 
 function CombatController:_OnActionResult(result: {[string]: any})
-	local success = result.Success
-	local errorCode = result.ErrorCode
-	
-	if not success then
-		Logger:Warning("Action rejected by server", {error = errorCode})
-		
-		-- Reset state on failure using StateManager
+	if not result.Success then
 		self._stateManager:SetState(Enums.CombatState.Idle, "action_rejected")
 	end
 end
 
-function CombatController:_OnTakeDamage(damageData: {[string]: any})
-	-- Play hit animation
-	if self._animationManager then
-		self._animationManager:PlayHitAnimation()
+function CombatController:_OnTakeDamage(_damageData: {[string]: any})
+	local character = self._characterManager:GetCharacter()
+	if character then
+		self._visualEffects:PlayHitEffect(character)
 	end
-	
-	-- Play hit VFX
-	if self.Character then
-		self._visualEffects:PlayHitEffect(self.Character)
-	end
-	
-	Logger:Info("Took damage", {damage = damageData.Damage})
 end
 
 function CombatController:_OnApplyKnockback(knockbackData: {[string]: any})
-	if not self.HumanoidRootPart then
-		return
+	local character = self._characterManager:GetCharacter()
+	if character then
+		Utility.ApplyKnockback(character, knockbackData.Direction, knockbackData.Force)
 	end
-	
-	local direction = knockbackData.Direction
-	local force = knockbackData.Force
-	
-	-- Apply knockback locally
-	Utility.ApplyKnockback(self.Character, direction, force)
-	
-	Logger:Debug("Knockback applied", {force = force})
 end
 
 -- ========================================
@@ -692,56 +307,29 @@ end
 -- ========================================
 
 function CombatController:_CanPerformAction(actionType: string): boolean
-	-- Check if enabled
-	if not self._enabled then
-		DebugLogger.ClientValidationFailed(actionType, "System not enabled")
+	-- Basic checks
+	if not self._enabled or not self._characterManager:IsCharacterValid() then
 		return false
 	end
 	
-	-- Check character validity
-	if not Utility.IsCharacterValid(self.Character) then
-		DebugLogger.ClientValidationFailed(actionType, "Invalid character")
-		return false
-	end
-	
-	-- Validate currentState type (debug protection)
+	-- State validation
 	if type(self._currentState) ~= "string" then
-		Logger:Error("_currentState is not a string!", {
-			stateType = type(self._currentState),
-			state = tostring(self._currentState),
-			actionType = actionType
-		})
-		-- Force reset to Idle
 		self._currentState = Enums.CombatState.Idle
 	end
 	
-	-- Check state
+	-- Block if stunned/dead
 	if self._currentState == Enums.CombatState.Stunned or self._currentState == Enums.CombatState.Dead then
-		DebugLogger.ClientValidationFailed(actionType, string.format("Invalid state: %s", self._currentState))
 		return false
 	end
 	
-	-- Check if action is allowed in current state (using lookup table)
+	-- Check if action allowed in current state
 	local validStates = VALID_ACTION_STATES[actionType]
 	if validStates and not validStates[self._currentState] then
-		DebugLogger.ClientValidationFailed(actionType, string.format("Invalid state: %s", self._currentState))
 		return false
 	end
 	
 	-- Check cooldown
-	local cooldownConfig = self:_GetCooldownForAction(actionType)
-	if not Utility.IsCooldownReady(self._cooldowns[actionType], cooldownConfig) then
-		local remaining = Utility.GetCooldownRemaining(self._cooldowns[actionType], cooldownConfig)
-		DebugLogger.ClientValidationFailed(actionType, string.format("On cooldown: %.1fs", remaining))
-		return false
-	end
-	
-	return true
-end
-
-function CombatController:_GetCooldownForAction(actionType: string): number
-	local cooldownGetter = COOLDOWN_CONFIGS[actionType]
-	return cooldownGetter and cooldownGetter() or 0
+	return self._cooldownManager:IsReady(actionType)
 end
 
 -- ========================================
@@ -749,49 +337,20 @@ end
 -- ========================================
 
 function CombatController:_StartUpdateLoop()
-	local heartbeatConnection = RunService.Heartbeat:Connect(function(deltaTime)
-		self:_Update(deltaTime)
-	end)
-	table.insert(self._connections, heartbeatConnection)
-end
-
-function CombatController:_Update(_deltaTime: number)
-	if not self._enabled then
-		return
-	end
-	
-	-- Process buffered inputs
-	self:_ProcessBufferedInputs()
-	
-	-- Update combo window
-	self:_UpdateComboWindow()
-end
-
-function CombatController:_ProcessBufferedInputs()
-	if not self._inputBuffering:HasBufferedInputs() then
-		return
-	end
-	
-	-- Try to execute buffered input
-	if self._currentState == Enums.CombatState.Idle then
-		local bufferedInput = self._inputBuffering:GetNextInput()
-		if bufferedInput and bufferedInput.ActionType == Enums.ActionType.M1 then
-			self:_HandleLightAttack()
+	table.insert(self._connections, RunService.Heartbeat:Connect(function()
+		if not self._enabled then return end
+		
+		-- Update combo window first (reset if expired)
+		self._comboManager:UpdateComboWindow()
+		
+		-- Process buffered inputs (with updated combo state)
+		if self._inputBuffering:HasBufferedInputs() and self._currentState == Enums.CombatState.Idle then
+			local bufferedInput = self._inputBuffering:GetNextInput()
+			if bufferedInput and bufferedInput.ActionType == Enums.ActionType.M1 then
+				self._actionHandler:HandleLightAttack()
+			end
 		end
-	end
-end
-
-function CombatController:_UpdateComboWindow()
-	-- Only check if combo is active (optimization)
-	if self._comboCount == 0 then
-		return
-	end
-	
-	local timeSinceLastAttack = os.clock() - self._lastAttackTime
-	if timeSinceLastAttack > Config.LightAttack.ComboWindow then
-		self._comboCount = 0
-		Logger:Debug("Combo reset")
-	end
+	end))
 end
 
 -- ========================================
@@ -799,23 +358,11 @@ end
 -- ========================================
 
 function CombatController:_ResetState()
-	-- Reset state using StateManager
 	self._stateManager:SetState(Enums.CombatState.Idle, "reset")
-	self._comboCount = 0
-	self._lastAttackTime = 0
-	
-	-- Reset cooldowns
-	for action in pairs(self._cooldowns) do
-		self._cooldowns[action] = 0
-	end
-	
-	-- Unblock inputs
+	self._comboManager:ResetCombo()
+	self._cooldownManager:Reset()
 	self._inputHandler:BlockAllInputs(false)
-	
-	-- Clear buffer
 	self._inputBuffering:ClearBuffer()
-	
-	Logger:Debug("State reset")
 end
 
 -- ========================================
@@ -826,10 +373,6 @@ function CombatController:GetCurrentState(): string
 	return self._currentState
 end
 
-function CombatController:GetComboCount(): number
-	return self._comboCount
-end
-
 function CombatController:IsEnabled(): boolean
 	return self._enabled
 end
@@ -837,8 +380,6 @@ end
 function CombatController:SetEnabled(enabled: boolean)
 	self._enabled = enabled
 	self._inputHandler:BlockAllInputs(not enabled)
-	
-	Logger:Info("CombatController enabled state changed", {enabled = enabled})
 end
 
 -- ========================================
@@ -848,41 +389,27 @@ end
 function CombatController:Destroy()
 	self._enabled = false
 	
-	-- Disconnect all event connections
+	-- Disconnect connections
 	for _, connection in ipairs(self._connections) do
 		connection:Disconnect()
 	end
-	table.clear(self._connections)
 	
-	if self._inputHandler then
-		self._inputHandler:Destroy()
+	-- Destroy all managers
+	for _, manager in pairs({
+		self._characterManager,
+		self._cooldownManager,
+		self._comboManager,
+		self._inputHandler,
+		self._inputBuffering,
+		self._stateManager,
+		self._movementController,
+		self._visualEffects,
+		self._animationController
+	}) do
+		if manager and manager.Destroy then
+			manager:Destroy()
+		end
 	end
-	
-	if self._inputBuffering then
-		self._inputBuffering:Destroy()
-	end
-	
-	if self._stateManager then
-		self._stateManager:Destroy()
-	end
-	
-	if self._movementController then
-		self._movementController:Destroy()
-	end
-	
-	if self._visualEffects then
-		self._visualEffects:Destroy()
-	end
-	
-	if self._animationManager then
-		self._animationManager:Destroy()
-	end
-	
-	self.Character = nil
-	self.Humanoid = nil
-	self.HumanoidRootPart = nil
-	
-	Logger:Info("CombatController destroyed")
 end
 
 return CombatController
