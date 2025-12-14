@@ -30,6 +30,8 @@ local Enums = require(Core.Enums)
 local Logger = require(Core.Logger).GetInstance()
 local Utility = require(Core.Utility)
 
+local MovementMechanicBase = require(script.Parent.MovementMechanicBase)
+
 -- Dash Module
 local Dash = {}
 
@@ -81,27 +83,11 @@ function Dash:Execute(player: Player, data: {[string]: any})
 	
 	-- Broadcast to clients for VFX
 	self:_BroadcastDash(player, direction)
-	
-	Logger:Debug("Dash executed", {
-		player = player.Name,
-		direction = direction
-	})
 end
 
 function Dash:CancelDash(player: Player)
 	Logger:Debug("Dash cancel requested", {player = player.Name})
-	
-	-- Cancel validation thread if exists
-	local startData = DashStartPositions[player]
-	if startData and startData.Thread then
-		pcall(function()
-			task.cancel(startData.Thread)
-		end)
-		-- Ignore errors - thread may have already completed
-	end
-	
-	-- Clean up tracking data
-	DashStartPositions[player] = nil
+	MovementMechanicBase.CancelMovement(player, DashStartPositions)
 end
 
 -- ========================================
@@ -110,61 +96,14 @@ end
 
 function Dash:_ValidateDashDistance(player: Player)
 	local startData = DashStartPositions[player]
-	if not startData then
-		return -- Dash was cancelled or player left
-	end
-	
-	local character = player.Character
-	if not Utility.IsCharacterValid(character) then
-		DashStartPositions[player] = nil
-		return
-	end
-	
-	local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-	if not humanoidRootPart then
-		DashStartPositions[player] = nil
-		return
-	end
-	
-	local endPosition = humanoidRootPart.Position
-	local distanceMoved = (endPosition - startData.Position).Magnitude
-	local timeTaken = tick() - startData.Time
-	
-	-- Calculate max allowed distance (Distance + 25% tolerance)
-	local maxAllowedDistance = Config.Dash.Distance * 1.25
-	
-	-- Calculate max allowed speed (with tolerance)
-	local maxAllowedSpeed = (Config.Dash.Speed * 1.3) -- 30% tolerance
-	local actualSpeed = distanceMoved / timeTaken
-	
-	-- Validate distance
-	if distanceMoved > maxAllowedDistance then
-		Logger:Warning("Dash distance exploit detected", {
-			player = player.Name,
-			distance = distanceMoved,
-			maxAllowed = maxAllowedDistance,
-			excess = distanceMoved - maxAllowedDistance
-		})
-		
-		-- Revert to start position
-		humanoidRootPart.CFrame = CFrame.new(startData.Position)
-	end
-	
-	-- Validate speed
-	if actualSpeed > maxAllowedSpeed then
-		Logger:Warning("Dash speed exploit detected", {
-			player = player.Name,
-			speed = actualSpeed,
-			maxAllowed = maxAllowedSpeed,
-			timeTaken = timeTaken
-		})
-		
-		-- Revert to start position
-		humanoidRootPart.CFrame = CFrame.new(startData.Position)
-	end
-	
-	-- Clean up
-	DashStartPositions[player] = nil
+	MovementMechanicBase.ValidateMovementDistance(
+		player,
+		startData,
+		DashStartPositions,
+		"Dash",
+		Config.Dash.Distance,
+		Config.Dash.Speed
+	)
 end
 
 -- ========================================
@@ -172,21 +111,7 @@ end
 -- ========================================
 
 function Dash:_BroadcastDash(player: Player, direction: string)
-	local NetworkManager = require(CombatSystem:WaitForChild("Network"):WaitForChild("NetworkManager"))
-	local netManager = NetworkManager.GetServerInstance()
-	
-	-- Broadcast to all clients for VFX/SFX
-	netManager:SendToAllClients(Enums.NetworkEvent.PlayAnimation, {
-		Player = player,
-		AnimationType = "Dash",
-		Direction = direction,
-	})
-	
-	netManager:SendToAllClients(Enums.NetworkEvent.PlayVFX, {
-		VFXType = "DashTrail",
-		Player = player,
-		Direction = direction,
-	})
+	MovementMechanicBase.BroadcastMovement(player, "Dash", "DashTrail", direction)
 end
 
 return Dash

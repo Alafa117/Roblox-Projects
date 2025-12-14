@@ -57,6 +57,17 @@ function PlayerDataManager.new(): PlayerDataManager
 	
 	self._playerData = {}
 	
+	-- Initialize NetworkManager cache on construction (optimization)
+	if not NetworkManagerCache then
+		local Network = CombatSystem:FindFirstChild("Network")
+		if Network then
+			local NetworkManagerModule = Network:FindFirstChild("NetworkManager")
+			if NetworkManagerModule then
+				NetworkManagerCache = require(NetworkManagerModule).GetServerInstance()
+			end
+		end
+	end
+	
 	Logger:Info("PlayerDataManager created")
 	
 	return self
@@ -167,24 +178,9 @@ function PlayerDataManager:SetPlayerState(player: Player, newState: string)
 	data.PreviousState = data.CurrentState
 	data.CurrentState = newState
 	
-	Logger:Debug("Player state changed", {
-		player = player.Name,
-		from = data.PreviousState,
-		to = newState
-	})
+	-- Logger:Debug("Player state changed", {...}) -- Removed: Hot path optimization
 	
 	-- Sync with client using cached NetworkManager
-	if not NetworkManagerCache then
-		-- Initialize cache on first use
-		local Network = CombatSystem:FindFirstChild("Network")
-		if Network then
-			local NetworkManagerModule = Network:FindFirstChild("NetworkManager")
-			if NetworkManagerModule then
-				NetworkManagerCache = require(NetworkManagerModule).GetServerInstance()
-			end
-		end
-	end
-	
 	if NetworkManagerCache then
 		NetworkManagerCache:SendToClient(player, Enums.NetworkEvent.StateChanged, {State = newState})
 	end
@@ -239,7 +235,7 @@ function PlayerDataManager:IncrementCombo(player: Player, maxCombo: number)
 	data.ComboCount = math.min(data.ComboCount + 1, maxCombo)
 	data.LastAttackTime = os.clock()
 	
-	Logger:Debug("Combo incremented", {player = player.Name, combo = data.ComboCount})
+	-- Logger:Debug("Combo incremented", {player = player.Name, combo = data.ComboCount}) -- Removed: Hot path
 end
 
 function PlayerDataManager:ResetCombo(player: Player)
@@ -250,7 +246,7 @@ function PlayerDataManager:ResetCombo(player: Player)
 	
 	data.ComboCount = 0
 	
-	Logger:Debug("Combo reset", {player = player.Name})
+	-- Logger:Debug("Combo reset", {player = player.Name}) -- Removed: Hot path
 end
 
 function PlayerDataManager:GetComboCount(player: Player): number
@@ -270,7 +266,7 @@ function PlayerDataManager:SetInvulnerable(player: Player, invulnerable: boolean
 	
 	data.IsInvulnerable = invulnerable
 	
-	Logger:Debug("Invulnerability changed", {player = player.Name, invulnerable = invulnerable})
+	-- Logger:Debug("Invulnerability changed", {player = player.Name, invulnerable = invulnerable}) -- Removed: Hot path
 end
 
 function PlayerDataManager:IsInvulnerable(player: Player): boolean
@@ -296,7 +292,7 @@ function PlayerDataManager:SetStunned(player: Player, stunned: boolean, duration
 		end
 	end
 	
-	Logger:Debug("Stun changed", {player = player.Name, stunned = stunned, duration = duration})
+	-- Logger:Debug("Stun changed", {player = player.Name, stunned = stunned, duration = duration}) -- Removed: Hot path
 end
 
 function PlayerDataManager:IsStunned(player: Player): boolean
@@ -336,7 +332,7 @@ function PlayerDataManager:SetBlocking(player: Player, blocking: boolean)
 		end
 	end
 	
-	Logger:Debug("Blocking changed", {player = player.Name, blocking = blocking})
+	-- Logger:Debug("Blocking changed", {player = player.Name, blocking = blocking}) -- Removed: Hot path
 end
 
 function PlayerDataManager:IsBlocking(player: Player): boolean

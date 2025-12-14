@@ -35,6 +35,8 @@ local Utility = require(Core.Utility)
 local DebugLogger = require(Core.DebugLogger)
 local HitboxVisualizer = require(Core.HitboxVisualizer)
 
+local AttackHelper = require(script.Parent.AttackHelper)
+
 -- Movement mechanics for cancellation
 local Dash = require(Mechanics.Dash)
 local Slide = require(Mechanics.Slide)
@@ -90,12 +92,6 @@ function LightAttack:Execute(player: Player, data: {[string]: any})
 	-- Broadcast to clients for VFX
 	DebugLogger.MechanicVFXBroadcast("LightAttack")
 	self:_BroadcastAttack(player, comboCount, hitPlayers)
-	
-	Logger:Debug("LightAttack executed", {
-		player = player.Name,
-		combo = comboCount,
-		hits = #hitPlayers
-	})
 end
 
 -- ========================================
@@ -180,26 +176,7 @@ function LightAttack:_DetectHits(attackData: Types.AttackData): {Player}
 end
 
 function LightAttack:_IsValidTarget(attacker: Player, victim: Player | Model): boolean
-	-- Get victim character (Player.Character or Model for NPCs)
-	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
-	
-	-- Can't hit yourself
-	if attacker.Character == victimChar then
-		return false
-	end
-	
-	-- Check character validity
-	if not Utility.IsCharacterValid(victimChar) then
-		return false
-	end
-	
-	-- Check if victim is dead
-	local humanoid = Utility.GetHumanoid(victimChar)
-	if not humanoid or humanoid.Health <= 0 then
-		return false
-	end
-	
-	return true
+	return AttackHelper.IsValidAttackTarget(attacker, victim)
 end
 
 -- ========================================
@@ -276,26 +253,10 @@ function LightAttack:_ApplyKnockback(attackData: Types.AttackData, victim: Playe
 			Force = attackData.Knockback,
 		})
 	end
-	
-	local victimName = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victimChar.Name
-	Logger:Debug("Knockback applied", {
-		victim = victimName,
-		force = attackData.Knockback
-	})
 end
 
 function LightAttack:_ApplyStun(victim: Player, duration: number)
-	local ServerScriptService = game:GetService("ServerScriptService")
-	local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
-	local PlayerDataManager = require(CombatHandler:WaitForChild("PlayerDataManager"))
-	local dataManager = PlayerDataManager.GetInstance()
-	
-	dataManager:SetStunned(victim, true, duration)
-	
-	Logger:Debug("Stun applied", {
-		victim = victim.Name,
-		duration = duration
-	})
+	AttackHelper.ApplyStunToPlayer(victim, duration)
 end
 
 -- ========================================
@@ -303,31 +264,7 @@ end
 -- ========================================
 
 function LightAttack:_BroadcastAttack(attacker: Player, comboCount: number, hitPlayers: {Player})
-	local NetworkManager = require(CombatSystem:WaitForChild("Network"):WaitForChild("NetworkManager"))
-	local netManager = NetworkManager.GetServerInstance()
-	
-	-- Broadcast to all clients for VFX/SFX
-	netManager:SendToAllClients(Enums.NetworkEvent.PlayAnimation, {
-		Player = attacker,
-		AnimationType = "LightAttack",
-		ComboCount = comboCount,
-	})
-	
-	-- Send hit effects
-	for _, victim in ipairs(hitPlayers) do
-		local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
-		local victimName = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victimChar.Name
-		local rootPart = Utility.GetRootPart(victimChar)
-		
-		if rootPart then
-			netManager:SendToAllClients(Enums.NetworkEvent.PlayVFX, {
-				VFXType = "HitSpark",
-				Position = rootPart.Position,
-				Attacker = attacker.Name,
-				Victim = victimName,
-			})
-		end
-	end
+	AttackHelper.BroadcastAttackEffects(attacker, "LightAttack", hitPlayers, "HitSpark", comboCount)
 end
 
 return LightAttack

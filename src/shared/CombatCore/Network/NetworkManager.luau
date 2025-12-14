@@ -155,8 +155,6 @@ function NetworkManager:_Initialize()
 		-- Setup client listeners
 		self:_SetupClientListeners()
 	end
-	
-	Logger:Debug("NetworkManager initialized")
 end
 
 -- ========================================
@@ -173,8 +171,6 @@ function NetworkManager:_SetupServerListeners()
 	self._remoteFunction.OnServerInvoke = function(player, eventType, data)
 		return self:_HandleClientInvoke(player, eventType, data)
 	end
-	
-	Logger:Debug("Server listeners setup")
 end
 
 function NetworkManager:_HandleClientRequest(player: Player, eventType: string, data: {[string]: any}?)
@@ -200,8 +196,6 @@ function NetworkManager:_HandleClientRequest(player: Player, eventType: string, 
 		if not success then
 			Logger:Error("Handler error", {event = eventType, error = result})
 		end
-	else
-		Logger:Debug("No handler registered", {event = eventType})
 	end
 end
 
@@ -245,8 +239,6 @@ function NetworkManager:_SetupClientListeners()
 	table.insert(self._connections, self._remoteEvent.OnClientEvent:Connect(function(eventType, data)
 		self:_HandleServerEvent(eventType, data)
 	end))
-	
-	Logger:Debug("Client listeners setup")
 end
 
 function NetworkManager:_HandleServerEvent(eventType: string, data: {[string]: any}?)
@@ -270,8 +262,6 @@ function NetworkManager:_HandleServerEvent(eventType: string, data: {[string]: a
 				end
 			end)
 		end
-	else
-		Logger:Debug("No callbacks registered", {event = eventType})
 	end
 end
 
@@ -331,8 +321,6 @@ function NetworkManager:RegisterHandler(eventType: string, handler: (Player, {[s
 	end
 	
 	self._handlers[eventType] = handler
-	
-	Logger:Debug("Handler registered", {event = eventType})
 end
 
 -- ========================================
@@ -350,8 +338,6 @@ function NetworkManager:RegisterCallback(eventType: string, callback: ({[string]
 	end
 	
 	table.insert(self._callbacks[eventType], callback)
-	
-	Logger:Debug("Callback registered", {event = eventType})
 end
 
 -- ========================================
@@ -370,8 +356,6 @@ function NetworkManager:SendToServer(eventType: string, data: {[string]: any}?)
 	end
 	
 	self._remoteEvent:FireServer(eventType, data)
-	
-	Logger:Debug("Sent to server", {event = eventType})
 end
 
 -- ========================================
@@ -390,8 +374,6 @@ function NetworkManager:SendToClient(player: Player, eventType: string, data: {[
 	end
 	
 	self._remoteEvent:FireClient(player, eventType, data)
-	
-	Logger:Debug("Sent to client", {event = eventType, player = player.Name})
 end
 
 function NetworkManager:SendToAllClients(eventType: string, data: {[string]: any}?)
@@ -406,8 +388,6 @@ function NetworkManager:SendToAllClients(eventType: string, data: {[string]: any
 	end
 	
 	self._remoteEvent:FireAllClients(eventType, data)
-	
-	Logger:Debug("Sent to all clients", {event = eventType})
 end
 
 -- ========================================

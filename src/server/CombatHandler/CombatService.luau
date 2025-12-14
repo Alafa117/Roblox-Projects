@@ -22,7 +22,7 @@
 -- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
+-- local RunService = game:GetService("RunService") -- Removed: Update loop disabled
 
 -- Module Imports
 local RS = ReplicatedStorage
@@ -107,7 +107,7 @@ function CombatService:Initialize()
 	self:_SetupPlayerConnections()
 	
 	-- Start update loop
-	self:_StartUpdateLoop()
+	-- self:_StartUpdateLoop() -- Disabled: Empty update loop causing unnecessary overhead
 	
 	self._isInitialized = true
 	
@@ -149,7 +149,7 @@ function CombatService:_InitializeNetworkManager()
 		return self:_HandleCancelSlide(player)
 	end)
 	
-	Logger:Debug("NetworkManager initialized")
+	-- Logger:Debug("NetworkManager initialized") -- Removed: Hot path optimization
 end
 
 -- ========================================
@@ -170,7 +170,7 @@ function CombatService:_LoadMechanics()
 	
 	for name, module in pairs(mechanicModules) do
 		self._mechanics[name] = require(module)
-		Logger:Debug("Mechanic loaded", {mechanic = name})
+		-- Logger:Debug("Mechanic loaded", {mechanic = name}) -- Removed: Loop optimization
 	end
 	
 	Logger:Info("All mechanics loaded")
@@ -399,7 +399,7 @@ function CombatService:_ProcessLightAttack(player: Player, data: {[string]: any}
 	local animationDuration = Config.LightAttack.Cooldown * 0.8
 	self:_ScheduleStateTransition(player, Enums.CombatState.Idle, animationDuration, Enums.CombatState.Attacking)
 	
-	Logger:Debug("Light attack processed", {player = player.Name, combo = comboCount})
+	-- Logger:Debug("Light attack processed", {player = player.Name, combo = comboCount}) -- Removed: Hot path
 	
 	return {Success = true, ComboCount = comboCount}
 end
@@ -441,7 +441,7 @@ function CombatService:_ProcessStrongAttack(player: Player, _data: {[string]: an
 	-- Return to idle after animation (StunDuration + buffer)
 	self:_ScheduleStateTransition(player, Enums.CombatState.Idle, Config.StrongAttack.StunDuration + 0.3, Enums.CombatState.Attacking)
 	
-	Logger:Debug("Strong attack processed", {player = player.Name})
+	-- Logger:Debug("Strong attack processed", {player = player.Name}) -- Removed: Hot path
 	
 	return {Success = true}
 end
@@ -486,7 +486,7 @@ function CombatService:_ProcessDash(player: Player, data: {[string]: any}): {[st
 	-- Return to idle after dash
 	self:_ScheduleStateTransition(player, Enums.CombatState.Idle, Config.Dash.Duration, Enums.CombatState.Dashing)
 	
-	Logger:Debug("Dash processed", {player = player.Name, direction = data.Direction})
+	-- Logger:Debug("Dash processed", {player = player.Name, direction = data.Direction}) -- Removed: Hot path
 	
 	return {Success = true}
 end
@@ -520,7 +520,7 @@ function CombatService:_ProcessSlide(player: Player, data: {[string]: any}): {[s
 	-- Return to idle after slide
 	self:_ScheduleStateTransition(player, Enums.CombatState.Idle, Config.Slide.Duration, Enums.CombatState.Sliding)
 	
-	Logger:Debug("Slide processed", {player = player.Name})
+	-- Logger:Debug("Slide processed", {player = player.Name}) -- Removed: Hot path
 	
 	return {Success = true}
 end
@@ -580,7 +580,7 @@ function CombatService:_ProcessBlock(player: Player, data: {[string]: any}): {[s
 		State = isBlocking and Enums.CombatState.Blocking or Enums.CombatState.Idle
 	})
 	
-	Logger:Debug("Block processed", {player = player.Name, blocking = isBlocking})
+	-- Logger:Debug("Block processed", {player = player.Name, blocking = isBlocking}) -- Removed: Hot path
 	
 	return {Success = true}
 end
@@ -665,6 +665,9 @@ end
 -- Note: Stun checks are already handled via task.delay in SetStunned()
 -- This loop is kept for future extensions (stamina regen, combo timeout, etc.)
 
+-- Disabled: Empty update loop causing unnecessary overhead (60 FPS server-side)
+-- Re-enable when implementing stamina regeneration, combo timeouts, or status effect ticks
+--[[
 function CombatService:_StartUpdateLoop()
 	local heartbeatConnection = RunService.Heartbeat:Connect(function(deltaTime)
 		self:_Update(deltaTime)
@@ -677,8 +680,8 @@ function CombatService:_Update(_deltaTime: number)
 	-- - Stamina regeneration
 	-- - Combo timeout checks
 	-- - Status effect ticks
-	-- Current: Minimal overhead, no active logic needed
 end
+--]]
 
 -- ========================================
 -- CLEANUP

@@ -35,6 +35,8 @@ local Utility = require(Core.Utility)
 local DebugLogger = require(Core.DebugLogger)
 local HitboxVisualizer = require(Core.HitboxVisualizer)
 
+local AttackHelper = require(script.Parent.AttackHelper)
+
 -- Movement mechanics for cancellation
 local Dash = require(Mechanics.Dash)
 local Slide = require(Mechanics.Slide)
@@ -88,11 +90,6 @@ function StrongAttack:Execute(player: Player, _data: {[string]: any})
 	-- Broadcast to clients for VFX
 	DebugLogger.MechanicVFXBroadcast("StrongAttack")
 	self:_BroadcastAttack(player, hitPlayers)
-	
-	Logger:Debug("StrongAttack executed", {
-		player = player.Name,
-		hits = #hitPlayers
-	})
 end
 
 -- ========================================
@@ -167,26 +164,7 @@ function StrongAttack:_DetectHits(attackData: Types.AttackData): {Player}
 end
 
 function StrongAttack:_IsValidTarget(attacker: Player, victim: Player | Model): boolean
-	-- Get victim character (Player.Character or Model for NPCs)
-	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
-	
-	-- Can't hit yourself
-	if attacker.Character == victimChar then
-		return false
-	end
-	
-	-- Check character validity
-	if not Utility.IsCharacterValid(victimChar) then
-		return false
-	end
-	
-	-- Check if victim is dead
-	local humanoid = Utility.GetHumanoid(victimChar)
-	if not humanoid or humanoid.Health <= 0 then
-		return false
-	end
-	
-	return true
+	return AttackHelper.IsValidAttackTarget(attacker, victim)
 end
 
 -- ========================================
@@ -224,12 +202,6 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
 	if victimChar then
 		Utility.ApplyRagdoll(victimChar, Config.StrongAttack.RagdollDuration)
-		
-		local victimName = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victimChar.Name
-		Logger:Debug("Strong attack ragdoll applied", {
-			victim = victimName,
-			duration = Config.StrongAttack.RagdollDuration
-		})
 	end
 end
 
@@ -273,27 +245,10 @@ function StrongAttack:_ApplyKnockback(attackData: Types.AttackData, victim: Play
 			Force = knockbackForce,
 		})
 	end
-	
-	local victimName = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victimChar.Name
-	Logger:Debug("Heavy knockback applied", {
-		victim = victimName,
-		force = knockbackForce,
-		hitResult = hitResult
-	})
 end
 
 function StrongAttack:_ApplyStun(victim: Player, duration: number)
-	local ServerScriptService = game:GetService("ServerScriptService")
-	local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
-	local PlayerDataManager = require(CombatHandler:WaitForChild("PlayerDataManager"))
-	local dataManager = PlayerDataManager.GetInstance()
-	
-	dataManager:SetStunned(victim, true, duration)
-	
-	Logger:Debug("Heavy stun applied", {
-		victim = victim.Name,
-		duration = duration
-	})
+	AttackHelper.ApplyStunToPlayer(victim, duration)
 end
 
 function StrongAttack:_BreakBlock(victim: Player)
@@ -324,30 +279,7 @@ end
 -- ========================================
 
 function StrongAttack:_BroadcastAttack(attacker: Player, hitPlayers: {Player})
-	local NetworkManager = require(CombatSystem:WaitForChild("Network"):WaitForChild("NetworkManager"))
-	local netManager = NetworkManager.GetServerInstance()
-	
-	-- Broadcast to all clients for VFX/SFX
-	netManager:SendToAllClients(Enums.NetworkEvent.PlayAnimation, {
-		Player = attacker,
-		AnimationType = "StrongAttack",
-	})
-	
-	-- Send heavy hit effects
-	for _, victim in ipairs(hitPlayers) do
-		local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
-		local victimName = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victimChar.Name
-		local rootPart = Utility.GetRootPart(victimChar)
-		
-		if rootPart then
-			netManager:SendToAllClients(Enums.NetworkEvent.PlayVFX, {
-				VFXType = "HeavyHit",
-				Position = rootPart.Position,
-				Attacker = attacker.Name,
-				Victim = victimName,
-			})
-		end
-	end
+	AttackHelper.BroadcastAttackEffects(attacker, "StrongAttack", hitPlayers, "HeavyHit", nil)
 end
 
 return StrongAttack
