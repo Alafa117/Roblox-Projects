@@ -34,7 +34,9 @@ local Types = require(Core.Types)
 local Logger = require(Core.Logger).GetInstance()
 local Utility = require(Core.Utility)
 local DebugLogger = require(Core.DebugLogger)
-local HitboxVisualizer = require(Core.HitboxVisualizer)
+
+-- Phase 2: Base class with common attack logic
+local BaseAttack = require(Mechanics.BaseAttack)
 
 -- Server-side helper (Phase 1 - Refactored location)
 local AttackHelper = require(ServerScriptService.CombatHandler.Helpers.AttackHelper)
@@ -44,13 +46,15 @@ local Dash = require(Mechanics.Dash)
 local Slide = require(Mechanics.Slide)
 
 -- Strong Attack Module
-local StrongAttack = {}
+local StrongAttack = setmetatable({}, BaseAttack)
+StrongAttack.__index = StrongAttack
 
 -- ========================================
 -- CONSTANTS
 -- ========================================
 
-local IS_SERVER = RunService:IsServer()
+local HITBOX_FORWARD_OFFSET = 4  -- Studs in front of player (further than M1)
+local HITBOX_MAX_ANGLE = 150     -- Degrees (wider than M1)
 
 -- ========================================
 -- EXECUTE METHOD
@@ -59,8 +63,8 @@ local IS_SERVER = RunService:IsServer()
 function StrongAttack:Execute(player: Player, _data: {[string]: any})
 	DebugLogger.MechanicExecute("StrongAttack", player.Name)
 	
-	if not IS_SERVER then
-		Logger:Warning("StrongAttack can only be executed on server")
+	-- Validate execution (Phase 2: uses base class)
+	if not self:_ValidateExecution(player, "StrongAttack") then
 		return
 	end
 	
@@ -68,20 +72,11 @@ function StrongAttack:Execute(player: Player, _data: {[string]: any})
 	Dash:CancelDash(player)
 	Slide:CancelSlide(player)
 	
-	-- Get character (support both Players and Test Rigs/NPCs)
-	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
-	if not Utility.IsCharacterValid(character) then
-		local playerName = if typeof(player) == "Instance" and player:IsA("Player") then player.Name else "TestRig"
-		DebugLogger.MechanicInvalidCharacter("StrongAttack", playerName)
-		Logger:Warning("Invalid character for StrongAttack", {player = playerName})
-		return
-	end
-	
 	-- Get attack parameters (instant attack)
 	local attackData = self:_GetAttackData(player)
 	
-	-- Perform hitbox detection
-	local hitPlayers = self:_DetectHits(attackData)
+	-- Perform hitbox detection (Phase 2: uses base class)
+	local hitPlayers = self:_DetectHits(attackData, HITBOX_FORWARD_OFFSET, HITBOX_MAX_ANGLE)
 	DebugLogger.MechanicHitDetection("StrongAttack", #hitPlayers)
 	
 	-- Apply damage to hit players
@@ -91,9 +86,9 @@ function StrongAttack:Execute(player: Player, _data: {[string]: any})
 		self:_ApplyDamage(attackData, victim)
 	end
 	
-	-- Broadcast to clients for VFX
+	-- Broadcast to clients for VFX (Phase 2: uses base class)
 	DebugLogger.MechanicVFXBroadcast("StrongAttack")
-	self:_BroadcastAttack(player, hitPlayers)
+	self:_BroadcastAttackToClients(player, "StrongAttack", hitPlayers, "HeavyHit", nil)
 end
 
 -- ========================================
@@ -122,82 +117,30 @@ function StrongAttack:_GetAttackData(player: Player): Types.AttackData
 end
 
 -- ========================================
--- HITBOX DETECTION
--- ========================================
-
-function StrongAttack:_DetectHits(attackData: Types.AttackData): {Player}
-	local attacker = attackData.Attacker
-	-- Get character (support both Players and Test Rigs/NPCs)
-	local character = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
-	local rootPart = Utility.GetRootPart(character)
-	
-	if not rootPart then
-		return {}
-	end
-	
-	-- Calculate hitbox origin (further in front for strong attack)
-	local origin = rootPart.Position + rootPart.CFrame.LookVector * 4
-	local direction = rootPart.CFrame.LookVector
-	
-	-- DEBUG: Visualize hitbox
-	if Config.Debug.ShowHitboxes then
-		HitboxVisualizer.ShowAttack(
-			origin,
-			direction,
-			attackData.HitboxSize,
-			attackData.Range,
-			"StrongAttack"
-		)
-	end
-	
-	-- Get players in hitbox (larger radius)
-	local hitPlayers = Utility.GetPlayersInRadius(origin, attackData.Range, {character})
-	
-	-- Filter valid targets
-	local validTargets = {}
-	for _, victim in ipairs(hitPlayers) do
-		if self:_IsValidTarget(attacker, victim) then
-			-- Get victim character (either Player.Character or the Model itself for NPCs)
-			local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
-			-- Wider angle for strong attack
-			if Utility.IsInFront(character, victimChar, 150) then
-				table.insert(validTargets, victim)
-			end
-		end
-	end
-	
-	return validTargets
-end
-
-function StrongAttack:_IsValidTarget(attacker: Player, victim: Player | Model): boolean
-	return AttackHelper.IsValidAttackTarget(attacker, victim)
-end
-
--- ========================================
 -- DAMAGE APPLICATION
 -- ========================================
 
 function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player | Model)
-	-- Get CombatService to apply damage
-	local ServerScriptService = game:GetService("ServerScriptService")
-	local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
-	local CombatService = require(CombatHandler:WaitForChild("CombatService"))
-	local service = CombatService.GetInstance()
-	
-	-- Apply damage through service
-	local hitData = service:ApplyDamage(attackData.Attacker, victim, attackData.Damage)
+	-- Apply damage through base class (Phase 2: cached service reference)
+	local hitData = self:_ApplyDamageToVictim(attackData, victim)
 	
 	if not hitData then
 		return
 	end
 	
-	-- Apply heavy knockback (even on block)
-	self:_ApplyKnockback(attackData, victim, hitData.HitResult)
-	
-	-- Apply longer stun (only for players)
-	if typeof(victim) == "Instance" and victim:IsA("Player") then
-		self:_ApplyStun(victim, Config.StrongAttack.StunDuration)
+	-- Calculate knockback multiplier based on hit result
+	local knockbackMultiplier = 1
+	if hitData.HitResult == Enums.HitResult.Blocked then
+		knockbackMultiplier = 0.3
+	elseif hitData.HitResult == Enums.HitResult.PerfectBlock then
+		knockbackMultiplier = 0.1
 	end
+	
+	-- Apply heavy knockback with upward component (Phase 2: uses base class)
+	self:_ApplyKnockbackToVictim(attackData, victim, knockbackMultiplier, 0.3)
+	
+	-- Apply longer stun (Phase 2: uses base class)
+	self:_ApplyStunToVictim(victim, Config.StrongAttack.StunDuration)
 	
 	-- Break block if blocked (for both players and NPCs)
 	if hitData.HitResult == Enums.HitResult.Blocked then
@@ -217,52 +160,8 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 end
 
 -- ========================================
--- KNOCKBACK & EFFECTS
+-- BLOCK BREAKING
 -- ========================================
-
-function StrongAttack:_ApplyKnockback(attackData: Types.AttackData, victim: Player | Model, hitResult: string)
-	-- Get attacker character (support Players and Test Rigs)
-	local attacker = attackData.Attacker
-	local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
-	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
-	
-	if not attackerChar or not victimChar then
-		return
-	end
-	
-	-- Calculate knockback direction
-	local direction = Utility.GetDirectionTo(attackerChar, victimChar)
-	if not direction then
-		return
-	end
-	
-	-- Reduced knockback if blocked
-	local knockbackForce = attackData.Knockback
-	if hitResult == Enums.HitResult.Blocked then
-		knockbackForce = knockbackForce * 0.3
-	elseif hitResult == Enums.HitResult.PerfectBlock then
-		knockbackForce = knockbackForce * 0.1
-	end
-	
-	-- Apply knockback with upward component
-	local knockbackDirection = direction + Vector3.new(0, 0.3, 0)
-	Utility.ApplyKnockback(victimChar, knockbackDirection.Unit, knockbackForce)
-	
-	-- Notify client (only for players)
-	if typeof(victim) == "Instance" and victim:IsA("Player") then
-		local NetworkManager = require(CombatSystem:WaitForChild("Network"):WaitForChild("NetworkManager"))
-		local netManager = NetworkManager.GetServerInstance()
-		
-		netManager:SendToClient(victim, Enums.NetworkEvent.ApplyKnockback, {
-			Direction = knockbackDirection,
-			Force = knockbackForce,
-		})
-	end
-end
-
-function StrongAttack:_ApplyStun(victim: Player, duration: number)
-	AttackHelper.ApplyStunToPlayer(victim, duration)
-end
 
 function StrongAttack:_BreakBlock(victim: Player)
 	local ServerScriptService = game:GetService("ServerScriptService")
@@ -300,14 +199,6 @@ function StrongAttack:_BreakNPCBlock(victim: Model)
 	Utility.ApplyRagdoll(victim, stunDuration)
 	
 	Logger:Info("NPC Block broken", {npc = victim.Name})
-end
-
--- ========================================
--- CLIENT BROADCASTING
--- ========================================
-
-function StrongAttack:_BroadcastAttack(attacker: Player, hitPlayers: {Player})
-	AttackHelper.BroadcastAttackEffects(attacker, "StrongAttack", hitPlayers, "HeavyHit", nil)
 end
 
 return StrongAttack

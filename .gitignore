@@ -104,4 +104,6 @@ yarn.lock
 # ===================================
 # OTROS
 # ===================================
-.md
+# Archivos temporales o borradores (NO todos los .md)
+*.draft.md
+*.temp.md
