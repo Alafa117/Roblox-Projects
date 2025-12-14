@@ -20,6 +20,22 @@ local ValidationHelper = {}
 -- CHARACTER VALIDATION
 -- ========================================
 
+function ValidationHelper.IsR6Avatar(character: Model): boolean
+	if not character then
+		return false
+	end
+	
+	-- R6 avatars have specific body parts
+	local hasR6Parts = character:FindFirstChild("Torso") 
+		and character:FindFirstChild("Left Arm") 
+		and character:FindFirstChild("Right Arm")
+		and character:FindFirstChild("Left Leg")
+		and character:FindFirstChild("Right Leg")
+		and character:FindFirstChild("Head")
+	
+	return hasR6Parts ~= nil
+end
+
 function ValidationHelper.IsCharacterValid(character: Model?): boolean
 	if not character then
 		return false
@@ -32,6 +48,12 @@ function ValidationHelper.IsCharacterValid(character: Model?): boolean
 	
 	local rootPart = character:FindFirstChild("HumanoidRootPart")
 	if not rootPart or not rootPart:IsA("BasePart") then
+		return false
+	end
+	
+	-- Validate R6 avatar (Combat System only supports R6)
+	if not ValidationHelper.IsR6Avatar(character) then
+		warn("[ValidationHelper] Character is not R6! Combat System only supports R6 avatars.")
 		return false
 	end
 	

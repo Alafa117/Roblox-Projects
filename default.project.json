@@ -13,6 +13,9 @@
     "ServerScriptService": {
       "CombatHandler": {
         "$path": "src/server/CombatHandler"
+      },
+      "Testing": {
+        "$path": "src/server/Testing"
       }
     },
 

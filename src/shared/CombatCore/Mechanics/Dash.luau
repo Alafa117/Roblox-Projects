@@ -55,9 +55,11 @@ function Dash:Execute(player: Player, data: {[string]: any})
 		return
 	end
 	
-	local character = player.Character
+	-- Get character (support Players and Test Rigs)
+	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
 	if not Utility.IsCharacterValid(character) then
-		Logger:Warning("Invalid character for Dash", {player = player.Name})
+		local playerName = if typeof(player) == "Instance" and player:IsA("Player") then player.Name else "TestRig"
+		Logger:Warning("Invalid character for Dash", {player = playerName})
 		return
 	end
 	

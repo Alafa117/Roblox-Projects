@@ -165,7 +165,9 @@ end
 
 -- State configuration lookup
 local STATE_CONFIG = {
-	[Enums.ActionType.M1] = {state = Enums.CombatState.Attacking, resetTime = function() return Config.LightAttack.ComboWindow + 0.1 end},
+	-- M1 state resets quickly (0.4s) to allow M2, but cooldown prevents another M1 combo
+	[Enums.ActionType.M1] = {state = Enums.CombatState.Attacking, resetTime = function() return 0.4 end},
+	-- M2 locks for full stun duration + buffer
 	[Enums.ActionType.M2] = {state = Enums.CombatState.Attacking, resetTime = function() return Config.StrongAttack.StunDuration + 0.3 end},
 	[Enums.ActionType.Q] = {state = Enums.CombatState.Dashing, resetTime = function() return Config.Dash.Duration + 0.1 end},
 	[Enums.ActionType.C] = {state = Enums.CombatState.Sliding, resetTime = function() return Config.Slide.Duration + 0.1 end},

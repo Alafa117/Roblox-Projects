@@ -66,7 +66,8 @@ function LightAttack:Execute(player: Player, data: {[string]: any})
 	Dash:CancelDash(player)
 	Slide:CancelSlide(player)
 	
-	local character = player.Character
+	-- Get character (support both Players and Test Rigs/NPCs)
+	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
 	if not Utility.IsCharacterValid(character) then
 		DebugLogger.MechanicInvalidCharacter("LightAttack", player.Name)
 		Logger:Warning("Invalid character for LightAttack", {player = player.Name})
@@ -99,7 +100,8 @@ end
 -- ========================================
 
 function LightAttack:_GetAttackData(player: Player, comboCount: number): Types.AttackData
-	local character = player.Character
+	-- Get character (support both Players and Test Rigs/NPCs)
+	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
 	local _rootPart = Utility.GetRootPart(character)
 	
 	-- Combo multipliers
@@ -134,7 +136,8 @@ end
 
 function LightAttack:_DetectHits(attackData: Types.AttackData): {Player}
 	local attacker = attackData.Attacker
-	local character = attacker.Character
+	-- Get character (support both Players and Test Rigs/NPCs)
+	local character = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
 	local rootPart = Utility.GetRootPart(character)
 	
 	if not rootPart then
@@ -227,7 +230,9 @@ end
 -- ========================================
 
 function LightAttack:_ApplyKnockback(attackData: Types.AttackData, victim: Player | Model)
-	local attackerChar = attackData.Attacker.Character
+	-- Get attacker character (support Players and Test Rigs)
+	local attacker = attackData.Attacker
+	local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
 	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
 	
 	if not attackerChar or not victimChar then

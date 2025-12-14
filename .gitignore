@@ -16,6 +16,7 @@
 # ===================================
 # Sourcemap generado por Rojo
 sourcemap.json
+default.project.json
 
 # ===================================
 # WALLY (Package Manager)
@@ -99,3 +100,8 @@ yarn.lock
 # ===================================
 /coverage/
 *.test.lua.snap
+
+# ===================================
+# OTROS
+# ===================================
+.md

@@ -45,29 +45,33 @@ local MovementController = require(script.Parent.MovementController)
 local VisualEffectsController = require(script.Parent.VisualEffectsController)
 
 -- Valid states for each action type
+-- M1, M2, Block can CANCEL Dash/Slide
+-- Dash/Slide can only execute from Idle (no canceling)
 local VALID_ACTION_STATES = {
 	[Enums.ActionType.M1] = {
 		[Enums.CombatState.Idle] = true,
-		[Enums.CombatState.Attacking] = true, -- Combo chains
-		[Enums.CombatState.Dashing] = true, -- Cancel dash
-		[Enums.CombatState.Sliding] = true, -- Cancel slide
+		[Enums.CombatState.Attacking] = true, -- M1 combo chains
+		[Enums.CombatState.Dashing] = true,   -- Can cancel Dash
+		[Enums.CombatState.Sliding] = true,   -- Can cancel Slide
 	},
 	[Enums.ActionType.M2] = {
 		[Enums.CombatState.Idle] = true,
-		[Enums.CombatState.Dashing] = true, -- Cancel dash
-		[Enums.CombatState.Sliding] = true, -- Cancel slide
+		[Enums.CombatState.Dashing] = true,   -- Can cancel Dash
+		[Enums.CombatState.Sliding] = true,   -- Can cancel Slide
 	},
 	[Enums.ActionType.Q] = {
 		[Enums.CombatState.Idle] = true,
-		[Enums.CombatState.Blocking] = true,
+		-- Cannot cancel any action
 	},
 	[Enums.ActionType.C] = {
 		[Enums.CombatState.Idle] = true,
-		[Enums.CombatState.Blocking] = true,
+		-- Cannot cancel any action
 	},
 	[Enums.ActionType.F] = {
 		[Enums.CombatState.Idle] = true,
-		[Enums.CombatState.Blocking] = true, -- Can re-block
+		[Enums.CombatState.Blocking] = true,  -- Can hold/re-block
+		[Enums.CombatState.Dashing] = true,   -- Can cancel Dash
+		[Enums.CombatState.Sliding] = true,   -- Can cancel Slide
 	},
 }
 

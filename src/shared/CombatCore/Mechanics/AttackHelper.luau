@@ -40,8 +40,11 @@ function AttackHelper.IsValidAttackTarget(attacker: Player, victim: Player | Mod
 	-- Get victim character (Player.Character or Model for NPCs)
 	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
 	
+	-- Get attacker character (support Players and Test Rigs)
+	local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
+	
 	-- Can't hit yourself
-	if attacker.Character == victimChar then
+	if attackerChar == victimChar then
 		return false
 	end
 	

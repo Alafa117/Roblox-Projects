@@ -66,10 +66,12 @@ function StrongAttack:Execute(player: Player, _data: {[string]: any})
 	Dash:CancelDash(player)
 	Slide:CancelSlide(player)
 	
-	local character = player.Character
+	-- Get character (support both Players and Test Rigs/NPCs)
+	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
 	if not Utility.IsCharacterValid(character) then
-		DebugLogger.MechanicInvalidCharacter("StrongAttack", player.Name)
-		Logger:Warning("Invalid character for StrongAttack", {player = player.Name})
+		local playerName = if typeof(player) == "Instance" and player:IsA("Player") then player.Name else "TestRig"
+		DebugLogger.MechanicInvalidCharacter("StrongAttack", playerName)
+		Logger:Warning("Invalid character for StrongAttack", {player = playerName})
 		return
 	end
 	
@@ -97,7 +99,8 @@ end
 -- ========================================
 
 function StrongAttack:_GetAttackData(player: Player): Types.AttackData
-	local character = player.Character
+	-- Get character (support both Players and Test Rigs/NPCs)
+	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
 	local _rootPart = Utility.GetRootPart(character)
 	
 	-- Instant attack with full damage
@@ -122,7 +125,8 @@ end
 
 function StrongAttack:_DetectHits(attackData: Types.AttackData): {Player}
 	local attacker = attackData.Attacker
-	local character = attacker.Character
+	-- Get character (support both Players and Test Rigs/NPCs)
+	local character = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
 	local rootPart = Utility.GetRootPart(character)
 	
 	if not rootPart then
@@ -193,9 +197,14 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 		self:_ApplyStun(victim, Config.StrongAttack.StunDuration)
 	end
 	
-	-- Break block if blocked (only for players)
-	if typeof(victim) == "Instance" and victim:IsA("Player") and hitData.HitResult == Enums.HitResult.Blocked then
-		self:_BreakBlock(victim)
+	-- Break block if blocked (for both players and NPCs)
+	if hitData.HitResult == Enums.HitResult.Blocked then
+		if typeof(victim) == "Instance" and victim:IsA("Player") then
+			self:_BreakBlock(victim)
+		else
+			-- NPC block break
+			self:_BreakNPCBlock(victim)
+		end
 	end
 	
 	-- Apply ragdoll effect
@@ -210,7 +219,9 @@ end
 -- ========================================
 
 function StrongAttack:_ApplyKnockback(attackData: Types.AttackData, victim: Player | Model, hitResult: string)
-	local attackerChar = attackData.Attacker.Character
+	-- Get attacker character (support Players and Test Rigs)
+	local attacker = attackData.Attacker
+	local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
 	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
 	
 	if not attackerChar or not victimChar then
@@ -272,6 +283,21 @@ function StrongAttack:_BreakBlock(victim: Player)
 	})
 	
 	Logger:Info("Block broken", {victim = victim.Name})
+end
+
+function StrongAttack:_BreakNPCBlock(victim: Model)
+	local ServerScriptService = game:GetService("ServerScriptService")
+	local Testing = ServerScriptService:WaitForChild("Testing")
+	local NPCCombatHelper = require(Testing:WaitForChild("NPCCombatHelper"))
+	
+	-- Force end blocking
+	NPCCombatHelper.StopBlock(victim)
+	
+	-- NPCs don't have stun system, but we can apply ragdoll for the stun duration
+	local stunDuration = Config.Block.BlockBreakStunDuration
+	Utility.ApplyRagdoll(victim, stunDuration)
+	
+	Logger:Info("NPC Block broken", {npc = victim.Name})
 end
 
 -- ========================================

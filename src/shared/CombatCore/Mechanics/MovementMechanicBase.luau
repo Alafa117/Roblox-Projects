@@ -47,7 +47,8 @@ function MovementMechanicBase.ValidateMovementDistance(
 		return false -- Movement was cancelled or player left
 	end
 	
-	local character = player.Character
+	-- Get character (support Players and Test Rigs)
+	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
 	if not Utility.IsCharacterValid(character) then
 		trackingTable[player] = nil
 		return false
