@@ -106,4 +106,8 @@ function Utility.ApplyRagdoll(character: Model, duration: number)
 	PhysicsHelper.ApplyRagdoll(character, duration)
 end
 
+function Utility.IsRagdolled(character: Model): boolean
+	return PhysicsHelper.IsRagdolled(character)
+end
+
 return Utility

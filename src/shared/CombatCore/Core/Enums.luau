@@ -21,7 +21,9 @@ local Enums = {}
 
 Enums.CombatState = {
 	Idle = "Idle",
-	Attacking = "Attacking",
+	Attacking = "Attacking", -- DEPRECATED: Use LightAttacking or StrongAttacking
+	LightAttacking = "LightAttacking", -- M1 execution
+	StrongAttacking = "StrongAttacking", -- M2 execution
 	Blocking = "Blocking",
 	Dashing = "Dashing",
 	Sliding = "Sliding",

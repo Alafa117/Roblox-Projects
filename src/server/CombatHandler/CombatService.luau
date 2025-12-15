@@ -473,6 +473,14 @@ function CombatService:ApplyDamage(attacker: Player, victim: Player | Model, dam
 		return nil
 	end
 	
+	-- Check if victim is ragdolled (invulnerable during ragdoll)
+	local Utility = require(game.ReplicatedStorage.CombatCore.Core.Utility)
+	if Utility.IsRagdolled(victimCharacter) then
+		local victimName = if isPlayer then victim.Name else victimCharacter.Name
+		Logger:Debug("Damage blocked - victim is ragdolled", {victim = victimName})
+		return nil
+	end
+	
 	-- Check blocking and apply damage reduction (for both players and NPCs)
 	local actualDamage = damage
 	local hitResult = Enums.HitResult.Success

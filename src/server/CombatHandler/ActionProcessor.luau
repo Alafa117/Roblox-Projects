@@ -121,7 +121,7 @@ function ActionProcessor:ProcessLightAttack(player: Player, data: {[string]: any
 	-- Only use PlayerDataManager for actual Players
 	if isPlayer then
 		-- Update player state
-		PlayerDataManager:SetPlayerState(player, Enums.CombatState.Attacking)
+		PlayerDataManager:SetPlayerState(player, Enums.CombatState.LightAttacking)
 		PlayerDataManager:SetCooldown(player, Enums.ActionType.M1, os.clock())
 		
 		-- Handle combo
@@ -161,9 +161,11 @@ function ActionProcessor:ProcessLightAttack(player: Player, data: {[string]: any
 			PlayerDataManager:ResetCombo(player)
 		end
 		
-		-- Return to idle after animation
-		local animationDuration = if comboCount == 6 then Config.LightAttack.FinisherCooldown else Config.LightAttack.Cooldown
-		self:_ScheduleStateTransition(player, Enums.CombatState.Idle, animationDuration, Enums.CombatState.Attacking)
+		-- Return to idle after animation (NOT cooldown duration)
+		-- Finisher animation is ~0.8s, then player can use other actions
+		-- M1 cooldown (3.0s) blocks only M1, not other actions
+		local animationDuration = if comboCount == 6 then 0.8 else Config.LightAttack.Cooldown
+		self:_ScheduleStateTransition(player, Enums.CombatState.Idle, animationDuration, Enums.CombatState.LightAttacking)
 	end
 	
 	return {Success = true, ComboCount = comboCount}
@@ -188,7 +190,7 @@ function ActionProcessor:ProcessStrongAttack(player: Player, data: {[string]: an
 	-- Only use PlayerDataManager for actual Players
 	if isPlayer then
 		-- Update player state
-		PlayerDataManager:SetPlayerState(player, Enums.CombatState.Attacking)
+		PlayerDataManager:SetPlayerState(player, Enums.CombatState.StrongAttacking)
 		PlayerDataManager:SetCooldown(player, Enums.ActionType.M2, os.clock())
 		PlayerDataManager:ResetCombo(player)
 	end
@@ -203,7 +205,7 @@ function ActionProcessor:ProcessStrongAttack(player: Player, data: {[string]: an
 	
 	-- Only handle state transitions for Players
 	if isPlayer then
-		self:_ScheduleStateTransition(player, Enums.CombatState.Idle, Config.StrongAttack.StunDuration + 0.3, Enums.CombatState.Attacking)
+		self:_ScheduleStateTransition(player, Enums.CombatState.Idle, Config.StrongAttack.StunDuration + 0.3, Enums.CombatState.StrongAttacking)
 	end
 	
 	return {Success = true}

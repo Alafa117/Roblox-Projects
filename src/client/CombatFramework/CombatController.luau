@@ -47,31 +47,40 @@ local VisualEffectsController = require(script.Parent.VisualEffectsController)
 -- Valid states for each action type
 -- M1, M2, Block can CANCEL Dash/Slide
 -- Dash/Slide can only execute from Idle (no canceling)
+-- Stunned state BLOCKS all actions (stun must expire to Idle first)
 local VALID_ACTION_STATES = {
 	[Enums.ActionType.M1] = {
 		[Enums.CombatState.Idle] = true,
-		[Enums.CombatState.Attacking] = true, -- M1 combo chains
+		[Enums.CombatState.LightAttacking] = true, -- M1 combo chains only
 		[Enums.CombatState.Dashing] = true,   -- Can cancel Dash
 		[Enums.CombatState.Sliding] = true,   -- Can cancel Slide
+		-- StrongAttacking NOT allowed (M2 blocks M1)
+		-- Stunned NOT allowed (must expire to Idle first)
 	},
 	[Enums.ActionType.M2] = {
 		[Enums.CombatState.Idle] = true,
 		[Enums.CombatState.Dashing] = true,   -- Can cancel Dash
 		[Enums.CombatState.Sliding] = true,   -- Can cancel Slide
+		-- LightAttacking NOT allowed (M1 blocks M2)
+		-- StrongAttacking NOT allowed (M2 blocks M2)
+		-- Stunned NOT allowed (must expire to Idle first)
 	},
 	[Enums.ActionType.Q] = {
 		[Enums.CombatState.Idle] = true,
 		-- Cannot cancel any action
+		-- Stunned NOT allowed
 	},
 	[Enums.ActionType.C] = {
 		[Enums.CombatState.Idle] = true,
 		-- Cannot cancel any action
+		-- Stunned NOT allowed
 	},
 	[Enums.ActionType.F] = {
 		[Enums.CombatState.Idle] = true,
 		[Enums.CombatState.Blocking] = true,  -- Can hold/re-block
 		[Enums.CombatState.Dashing] = true,   -- Can cancel Dash
 		[Enums.CombatState.Sliding] = true,   -- Can cancel Slide
+		-- Stunned NOT allowed
 	},
 }
 
@@ -321,8 +330,8 @@ function CombatController:_CanPerformAction(actionType: string): boolean
 		self._currentState = Enums.CombatState.Idle
 	end
 	
-	-- Block if stunned/dead
-	if self._currentState == Enums.CombatState.Stunned or self._currentState == Enums.CombatState.Dead then
+	-- Block if dead (but NOT stunned - stun expires automatically)
+	if self._currentState == Enums.CombatState.Dead then
 		return false
 	end
 	

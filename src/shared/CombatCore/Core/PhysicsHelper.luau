@@ -62,33 +62,65 @@ function PhysicsHelper.ApplyRagdoll(character: Model, duration: number)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
 	humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 	
-	-- Store original Motor6D data
+	-- Store original Motor6D data and part properties
 	local characterRagdollData = {}
+	characterRagdollData.OriginalCollisionStates = {}
 	RagdollData[character] = characterRagdollData
 	
-	-- Break all joints to create ragdoll effect
+	-- Prepare body parts for ragdoll physics
+	for _, part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+			-- Store original collision state
+			characterRagdollData.OriginalCollisionStates[part] = part.CanCollide
+			
+			-- Disable collision to prevent getting stuck
+			part.CanCollide = false
+			
+			-- Zero velocities to start fresh
+			part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+			part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+			
+			-- Remove any existing BodyMovers
+			for _, child in ipairs(part:GetChildren()) do
+				if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or child:IsA("BodyGyro") then
+					child:Destroy()
+				end
+			end
+		end
+	end
+	
+	-- Break all Motor6D joints and replace with BallSocketConstraints
 	for _, descendant in ipairs(character:GetDescendants()) do
 		if descendant:IsA("Motor6D") then
-			local socket = Instance.new("BallSocketConstraint")
+			local part0 = descendant.Part0
+			local part1 = descendant.Part1
+			
+			if not part0 or not part1 then
+				continue
+			end
+			
+			-- Create attachments at Motor6D positions
 			local att0 = Instance.new("Attachment")
 			local att1 = Instance.new("Attachment")
 			
-			-- Position attachments at Motor6D positions to maintain limb structure
 			att0.CFrame = descendant.C0
 			att1.CFrame = descendant.C1
+			att0.Parent = part0
+			att1.Parent = part1
 			
-			att0.Parent = descendant.Part0
-			att1.Parent = descendant.Part1
-			
-			-- Configure socket for natural movement
+			-- Create BallSocketConstraint for natural joint movement
+			local socket = Instance.new("BallSocketConstraint")
 			socket.Attachment0 = att0
 			socket.Attachment1 = att1
+			
+			-- Configure limits for natural ragdoll (more freedom)
 			socket.LimitsEnabled = true
-			socket.UpperAngle = 45 -- Limit rotation to prevent unnatural bending
+			socket.UpperAngle = 90 -- Increased for natural movement
 			socket.TwistLimitsEnabled = true
-			socket.TwistLowerAngle = -45
-			socket.TwistUpperAngle = 45
-			socket.Parent = descendant.Parent
+			socket.TwistLowerAngle = -90
+			socket.TwistUpperAngle = 90
+			
+			socket.Parent = part0
 			
 			-- Store data for restoration
 			table.insert(characterRagdollData, {
@@ -98,6 +130,7 @@ function PhysicsHelper.ApplyRagdoll(character: Model, duration: number)
 				Att1 = att1,
 			})
 			
+			-- CRITICAL: Disable Motor6D to allow BallSocketConstraint to work
 			descendant.Enabled = false
 		end
 	end
@@ -135,7 +168,16 @@ function PhysicsHelper.RemoveRagdoll(character: Model)
 		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 	end
 	
-	-- Restore all Motor6Ds
+	-- Restore original collision states
+	if characterRagdollData.OriginalCollisionStates then
+		for part, originalState in pairs(characterRagdollData.OriginalCollisionStates) do
+			if part and part.Parent then
+				part.CanCollide = originalState
+			end
+		end
+	end
+	
+	-- Restore all Motor6Ds and remove constraints
 	for _, data in ipairs(characterRagdollData) do
 		if data.Motor then
 			data.Motor.Enabled = true
@@ -152,6 +194,14 @@ function PhysicsHelper.RemoveRagdoll(character: Model)
 	end
 	
 	RagdollData[character] = nil
+end
+
+-- ========================================
+-- RAGDOLL STATE CHECK
+-- ========================================
+
+function PhysicsHelper.IsRagdolled(character: Model): boolean
+	return RagdollData[character] ~= nil
 end
 
 return PhysicsHelper

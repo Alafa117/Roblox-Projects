@@ -26,15 +26,17 @@ local RunService = game:GetService("RunService")
 local RS = ReplicatedStorage
 local CombatSystem = RS:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
+local Network = CombatSystem:WaitForChild("Network")
 
 local Enums = require(Core.Enums)
 local Logger = require(Core.Logger).GetInstance()
 
+-- Phase 3: Extracted rate limiting to dedicated module
+local RateLimiter = require(Network.RateLimiter)
+
 -- Constants
 local IS_SERVER = RunService:IsServer()
 local IS_CLIENT = RunService:IsClient()
-local RATE_LIMIT_WINDOW = 1 -- Seconds
-local MAX_REQUESTS_PER_WINDOW = 20
 
 -- Network Manager Class
 local NetworkManager = {}
@@ -48,17 +50,12 @@ local ClientInstance: NetworkManager? = nil
 -- TYPES
 -- ========================================
 
-type RateLimitData = {
-	RequestCount: number,
-	WindowStart: number,
-}
-
 type NetworkManager = {
 	_remoteEvent: RemoteEvent?,
 	_remoteFunction: RemoteFunction?,
 	_handlers: {[string]: (...any) -> any},
 	_callbacks: {[string]: {(...any) -> ()}},
-	_rateLimits: {[Player]: RateLimitData}?,
+	_rateLimiter: any?, -- Phase 3: Dedicated RateLimiter instance
 	_connections: {RBXScriptConnection},
 	_isServer: boolean,
 	_isClient: boolean,
@@ -75,10 +72,20 @@ function NetworkManager.new(isServer: boolean): NetworkManager
 	self._remoteFunction = nil
 	self._handlers = {}
 	self._callbacks = {}
-	self._rateLimits = isServer and {} or nil
 	self._connections = {}
 	self._isServer = isServer
 	self._isClient = not isServer
+	
+	-- Phase 3: Use dedicated RateLimiter module
+	if isServer then
+		self._rateLimiter = RateLimiter.new({
+			WindowSize = 1,
+			MaxRequests = 20,
+			AutoCleanup = true,
+		})
+	else
+		self._rateLimiter = nil
+	end
 	
 	self:_Initialize()
 	
@@ -174,8 +181,8 @@ function NetworkManager:_SetupServerListeners()
 end
 
 function NetworkManager:_HandleClientRequest(player: Player, eventType: string, data: {[string]: any}?)
-	-- Rate limiting
-	if not self:_CheckRateLimit(player) then
+	-- Rate limiting (Phase 3: uses RateLimiter module)
+	if self._rateLimiter and not self._rateLimiter:CheckLimit(player) then
 		Logger:Warning("Rate limit exceeded", {player = player.Name, event = eventType})
 		return
 	end
@@ -200,8 +207,8 @@ function NetworkManager:_HandleClientRequest(player: Player, eventType: string, 
 end
 
 function NetworkManager:_HandleClientInvoke(player: Player, eventType: string, data: {[string]: any}?): any
-	-- Rate limiting
-	if not self:_CheckRateLimit(player) then
+	-- Rate limiting (Phase 3: uses RateLimiter module)
+	if self._rateLimiter and not self._rateLimiter:CheckLimit(player) then
 		Logger:Warning("Rate limit exceeded on invoke", {player = player.Name, event = eventType})
 		return {Success = false, ErrorCode = "RATE_LIMIT"}
 	end
@@ -266,47 +273,12 @@ function NetworkManager:_HandleServerEvent(eventType: string, data: {[string]: a
 end
 
 -- ========================================
--- RATE LIMITING (SERVER ONLY)
+-- PLAYER CLEANUP (SERVER ONLY)
 -- ========================================
 
-function NetworkManager:_CheckRateLimit(player: Player): boolean
-	if not self._isServer or not self._rateLimits then
-		return true
-	end
-	
-	local now = os.clock()
-	local limitData = self._rateLimits[player]
-	
-	if not limitData then
-		self._rateLimits[player] = {
-			RequestCount = 1,
-			WindowStart = now,
-		}
-		return true
-	end
-	
-	-- Check if window expired
-	if now - limitData.WindowStart >= RATE_LIMIT_WINDOW then
-		limitData.RequestCount = 1
-		limitData.WindowStart = now
-		return true
-	end
-	
-	-- Check if limit exceeded
-	if limitData.RequestCount >= MAX_REQUESTS_PER_WINDOW then
-		return false
-	end
-	
-	-- Increment counter
-	limitData.RequestCount += 1
-	return true
-end
-
 function NetworkManager:_CleanupPlayer(player: Player)
-	if self._rateLimits then
-		self._rateLimits[player] = nil
-	end
-	
+	-- Phase 3: RateLimiter handles its own cleanup automatically
+	-- This method is kept for potential future network cleanup needs
 	Logger:Debug("Player network data cleaned", {player = player.Name})
 end
 

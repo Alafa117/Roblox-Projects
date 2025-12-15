@@ -57,6 +57,40 @@ local HITBOX_FORWARD_OFFSET = 4  -- Studs in front of player (further than M1)
 local HITBOX_MAX_ANGLE = 150     -- Degrees (wider than M1)
 
 -- ========================================
+-- CACHED REFERENCES (Phase 3 optimization)
+-- ========================================
+
+-- Lazy-loaded singletons for dependency injection
+local _playerDataManager = nil
+local _networkManager = nil
+local _npcCombatHelper = nil
+
+local function GetPlayerDataManager()
+	if not _playerDataManager then
+		local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
+		local PlayerDataManager = require(CombatHandler:WaitForChild("PlayerDataManager"))
+		_playerDataManager = PlayerDataManager.GetInstance()
+	end
+	return _playerDataManager
+end
+
+local function GetNetworkManager()
+	if not _networkManager then
+		local NetworkManager = require(CombatSystem:WaitForChild("Network"):WaitForChild("NetworkManager"))
+		_networkManager = NetworkManager.GetServerInstance()
+	end
+	return _networkManager
+end
+
+local function GetNPCCombatHelper()
+	if not _npcCombatHelper then
+		local Testing = ServerScriptService:WaitForChild("Testing")
+		_npcCombatHelper = require(Testing:WaitForChild("NPCCombatHelper"))
+	end
+	return _npcCombatHelper
+end
+
+-- ========================================
 -- EXECUTE METHOD
 -- ========================================
 
@@ -164,10 +198,9 @@ end
 -- ========================================
 
 function StrongAttack:_BreakBlock(victim: Player)
-	local ServerScriptService = game:GetService("ServerScriptService")
-	local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
-	local PlayerDataManager = require(CombatHandler:WaitForChild("PlayerDataManager"))
-	local dataManager = PlayerDataManager.GetInstance()
+	-- Phase 3: Dependency injection via cached getters
+	local dataManager = GetPlayerDataManager()
+	local netManager = GetNetworkManager()
 	
 	-- Force end blocking
 	dataManager:SetBlocking(victim, false)
@@ -176,9 +209,6 @@ function StrongAttack:_BreakBlock(victim: Player)
 	dataManager:SetStunned(victim, true, Config.Block.BlockBreakStunDuration)
 	
 	-- Notify client for animation
-	local NetworkManager = require(CombatSystem:WaitForChild("Network"):WaitForChild("NetworkManager"))
-	local netManager = NetworkManager.GetServerInstance()
-	
 	netManager:SendToClient(victim, Enums.NetworkEvent.PlayAnimation, {
 		AnimationType = "BlockBreak",
 	})
@@ -187,12 +217,11 @@ function StrongAttack:_BreakBlock(victim: Player)
 end
 
 function StrongAttack:_BreakNPCBlock(victim: Model)
-	local ServerScriptService = game:GetService("ServerScriptService")
-	local Testing = ServerScriptService:WaitForChild("Testing")
-	local NPCCombatHelper = require(Testing:WaitForChild("NPCCombatHelper"))
+	-- Phase 3: Dependency injection via cached getter
+	local npcHelper = GetNPCCombatHelper()
 	
 	-- Force end blocking
-	NPCCombatHelper.StopBlock(victim)
+	npcHelper.StopBlock(victim)
 	
 	-- NPCs don't have stun system, but we can apply ragdoll for the stun duration
 	local stunDuration = Config.Block.BlockBreakStunDuration
