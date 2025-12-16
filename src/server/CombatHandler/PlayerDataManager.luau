@@ -125,6 +125,7 @@ function PlayerDataManager:CreatePlayerData(player: Player): Types.PlayerCombatD
 		IsInvulnerable = false,
 		IsStunned = false,
 		StunEndTime = nil,
+		StunTimer = nil,
 		
 		IsBlocking = false,
 		BlockStartTime = nil,
@@ -143,8 +144,15 @@ function PlayerDataManager:CreatePlayerData(player: Player): Types.PlayerCombatD
 end
 
 function PlayerDataManager:RemovePlayerData(player: Player)
-	if not self._playerData[player] then
+	local data = self._playerData[player]
+	if not data then
 		return
+	end
+	
+	-- Cancel any active timers
+	if data.StunTimer then
+		task.cancel(data.StunTimer)
+		data.StunTimer = nil
 	end
 	
 	self._playerData[player] = nil
@@ -280,11 +288,30 @@ function PlayerDataManager:SetStunned(player: Player, stunned: boolean, duration
 		return
 	end
 	
+	-- Cancel existing stun timer if any
+	if data.StunTimer then
+		task.cancel(data.StunTimer)
+		data.StunTimer = nil
+	end
+	
 	data.IsStunned = stunned
 	
 	if stunned and duration then
 		data.StunEndTime = os.clock() + duration
 		self:SetPlayerState(player, Enums.CombatState.Stunned)
+		
+		-- Schedule automatic stun removal
+		data.StunTimer = task.delay(duration, function()
+			-- Only clear if player still exists and is still stunned
+			if self._playerData[player] then
+				local currentData = self:GetPlayerData(player)
+				if currentData and currentData.IsStunned then
+					-- Clear timer reference BEFORE calling SetStunned to avoid recursive cancel
+					currentData.StunTimer = nil
+					self:SetStunned(player, false)
+				end
+			end
+		end)
 	else
 		data.StunEndTime = nil
 		if data.CurrentState == Enums.CombatState.Stunned then

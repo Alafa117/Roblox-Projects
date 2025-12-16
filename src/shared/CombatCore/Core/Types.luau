@@ -54,6 +54,7 @@ export type PlayerCombatData = {
 	IsInvulnerable: boolean,
 	IsStunned: boolean,
 	StunEndTime: number?,
+	StunTimer: thread?,
 	
 	-- Block Data
 	IsBlocking: boolean,
