@@ -148,6 +148,13 @@ function Logger:Warning(message: string, context: {[string]: any}?)
 	self:_Log(Enums.LogLevel.Warning, message, context)
 end
 
+---Logs a success message (same level as Info but with success formatting)
+---@param message string The message to log
+---@param context table<string, any>? Optional context data
+function Logger:Success(message: string, context: {[string]: any}?)
+	self:_Log(Enums.LogLevel.Info, message, context)
+end
+
 ---Logs an error message
 ---@param message string The message to log
 ---@param context table<string, any>? Optional context data

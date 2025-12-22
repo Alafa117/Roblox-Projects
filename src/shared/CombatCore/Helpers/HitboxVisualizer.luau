@@ -93,22 +93,23 @@ function HitboxVisualizer.ShowHitbox(origin: Vector3, size: Vector3, attackType:
 	duration = duration or DURATION
 	local color = COLORS[attackType] or COLORS.Default
 	
-	-- Create hitbox part
+	-- Create hitbox part (wireframe style)
 	local hitbox = Instance.new("Part")
 	hitbox.Name = "Hitbox_" .. attackType
 	hitbox.Size = size
 	hitbox.CFrame = CFrame.new(origin)
-	hitbox.Transparency = TRANSPARENCY
+	hitbox.Transparency = TRANSPARENCY -- Almost invisible faces
 	hitbox.Color = color
-	hitbox.Material = Enum.Material.Neon
+	hitbox.Material = Enum.Material.ForceField -- Special transparent material
 	hitbox.CanCollide = false
 	hitbox.Anchored = true
 	hitbox.CastShadow = false
 	
-	-- Add outline
+	-- Add thick colored outline (wireframe edges)
 	local selectionBox = Instance.new("SelectionBox")
-	selectionBox.LineThickness = 0.05
+	selectionBox.LineThickness = Config.Debug.EdgeThickness or 0.08
 	selectionBox.Color3 = color
+	selectionBox.Transparency = 0 -- Solid edges
 	selectionBox.Adornee = hitbox
 	selectionBox.Parent = hitbox
 	
@@ -127,6 +128,49 @@ function HitboxVisualizer.ShowHitbox(origin: Vector3, size: Vector3, attackType:
 	end)
 	
 	return hitbox
+end
+
+-- Show movement trail (creates boxes along path)
+function HitboxVisualizer.ShowMovementTrail(origin: Vector3, size: Vector3, attackType: string, duration: number?)
+	if not ENABLED then return end
+	
+	duration = duration or (DURATION * 0.5) -- Shorter duration for trail
+	local color = COLORS[attackType] or COLORS.Default
+	
+	-- Create trail box part
+	local trailBox = Instance.new("Part")
+	trailBox.Name = "Trail_" .. attackType
+	trailBox.Size = size
+	trailBox.CFrame = CFrame.new(origin)
+	trailBox.Transparency = Config.Debug.MovementTrailTransparency or 0.85
+	trailBox.Color = color
+	trailBox.Material = Enum.Material.ForceField
+	trailBox.CanCollide = false
+	trailBox.Anchored = true
+	trailBox.CastShadow = false
+	
+	-- Add outline
+	local selectionBox = Instance.new("SelectionBox")
+	selectionBox.LineThickness = (Config.Debug.EdgeThickness or 0.08) * 0.7 -- Slightly thinner for trail
+	selectionBox.Color3 = color
+	selectionBox.Transparency = 0.3 -- Slightly transparent edges for trail
+	selectionBox.Adornee = trailBox
+	selectionBox.Parent = trailBox
+	
+	trailBox.Parent = GetDebugFolder()
+	
+	-- Fade out and destroy
+	local thread = task.delay(duration, function()
+		if trailBox and trailBox.Parent then
+			trailBox:Destroy()
+		end
+	end)
+	
+	trailBox.Destroying:Connect(function()
+		task.cancel(thread)
+	end)
+	
+	return trailBox
 end
 
 -- Show detection range (sphere)

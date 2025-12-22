@@ -25,10 +25,9 @@ local RunService = game:GetService("RunService")
 -- Module Imports
 local RS = ReplicatedStorage
 local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 
-local Enums = require(Core.Enums)
-local Logger = require(Core.Logger).GetInstance()
+local Enums = require(CombatSystem.Data.Enums)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 local PhysicsHelper = require(CombatSystem.Helpers.PhysicsHelper)
 
 local CharacterManager = require(script.Parent.CharacterManager)

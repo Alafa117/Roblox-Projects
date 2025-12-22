@@ -19,9 +19,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- Module Imports
 local RS = ReplicatedStorage
 local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 
-local Logger = require(Core.Logger).GetInstance()
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 
 -- Get CombatService from parent folder (CombatService folder)
 local CombatService = require(script.Parent.CombatService)

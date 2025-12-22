@@ -32,10 +32,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 
-local PhysicsHelper = require(Core.PhysicsHelper)
-local Logger = require(Core.Logger).GetInstance()
+local PhysicsHelper = require(CombatSystem.Helpers.PhysicsHelper)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 
 -- Ragdoll Manager Module
 local RagdollManager = {}
@@ -124,8 +123,8 @@ function RagdollManager:ApplyRagdoll(character: Model, duration: number)
 			-- Store original collision state
 			ragdollData.OriginalCollisionStates[part] = part.CanCollide
 			
-			-- Disable collision to prevent getting stuck
-			part.CanCollide = false
+			-- Enable collision for natural ragdoll physics
+			part.CanCollide = true
 			
 			-- Zero velocities to start fresh
 			part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
@@ -173,16 +172,22 @@ function RagdollManager:ApplyRagdoll(character: Model, duration: number)
 			
 			socket.Parent = part0
 			
-			-- Store data for restoration
-			table.insert(ragdollData, {
+			-- Store motor data for restoration (before destroying)
+			local motorData = {
 				Motor = descendant,
+				Part0 = descendant.Part0,
+				Part1 = descendant.Part1,
+				C0 = descendant.C0,
+				C1 = descendant.C1,
 				Socket = socket,
 				Att0 = att0,
 				Att1 = att1,
-			})
+			}
+			table.insert(ragdollData, motorData)
 			
-			-- CRITICAL: Disable Motor6D to allow BallSocketConstraint to work
-			descendant.Enabled = false
+			-- CRITICAL: Destroy Motor6D parent to fully disconnect
+			-- Setting Parent to nil disconnects the joint while preserving the instance
+			descendant.Parent = nil
 		end
 	end
 	
@@ -230,9 +235,11 @@ function RagdollManager:RemoveRagdoll(character: Model)
 	
 	-- Restore all Motor6Ds and remove constraints
 	for _, data in ipairs(ragdollData) do
-		if data.Motor then
-			data.Motor.Enabled = true
+		-- Restore Motor6D by reparenting (reconnects the joint)
+		if data.Motor and data.Part0 and data.Part0.Parent then
+			data.Motor.Parent = data.Part0
 		end
+		-- Cleanup constraints and attachments
 		if data.Socket then
 			data.Socket:Destroy()
 		end

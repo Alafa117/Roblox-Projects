@@ -174,15 +174,15 @@ end
 function CombatService:_LoadMechanics()
 	-- Phase 4: Attack mechanics now in server, movement mechanics still in shared
 	local serverMechanicsFolder = script.Parent:WaitForChild("Mechanics")
-	local sharedMechanicsFolder = CombatSystem:WaitForChild("Mechanics")
+	local sharedMovementFolder = CombatSystem:WaitForChild("Movement")
 	
 	-- Load attack mechanics from server (server-authoritative)
 	self._mechanics.LightAttack = require(serverMechanicsFolder:WaitForChild("LightAttack"))
 	self._mechanics.StrongAttack = require(serverMechanicsFolder:WaitForChild("StrongAttack"))
 	
 	-- Load movement mechanics from shared (client prediction support)
-	self._mechanics.Dash = require(sharedMechanicsFolder:WaitForChild("Dash"))
-	self._mechanics.Slide = require(sharedMechanicsFolder:WaitForChild("Slide"))
+	self._mechanics.Dash = require(sharedMovementFolder:WaitForChild("Dash"))
+	self._mechanics.Slide = require(sharedMovementFolder:WaitForChild("Slide"))
 	
 	-- Pass mechanics to ActionProcessor
 	self._actionProcessor:SetMechanics(self._mechanics)

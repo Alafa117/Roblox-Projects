@@ -20,7 +20,7 @@ local DebugConfig = {}
 -- HITBOX VISUALIZATION
 -- ========================================
 
-DebugConfig.ShowHitboxes = false -- Toggle hitbox visualization
+DebugConfig.ShowHitboxes = true -- Toggle hitbox visualization
 
 -- ========================================
 -- DEBUG LOGGING FLAGS
@@ -33,8 +33,11 @@ DebugConfig.EnableMechanicDebug = true    -- Mechanic execution debug logs
 DebugConfig.EnableValidationDebug = true  -- Validation debug logs
 
 -- Hitbox visualization settings
-DebugConfig.HitboxTransparency = 0.7 -- Semi-transparent
+DebugConfig.HitboxTransparency = 0.95 -- Almost transparent (wireframe style)
 DebugConfig.HitboxDuration = 0.5 -- Display duration in seconds
+DebugConfig.EdgeThickness = 0.08 -- Thickness of hitbox edges
+DebugConfig.MovementTrailInterval = 0.05 -- Interval for movement trail boxes (seconds)
+DebugConfig.MovementTrailTransparency = 0.85 -- Transparency for trail boxes
 
 -- ========================================
 -- DEBUG COLORS
@@ -42,10 +45,10 @@ DebugConfig.HitboxDuration = 0.5 -- Display duration in seconds
 
 -- Colors for different attack types (hitbox visualization)
 DebugConfig.Colors = {
-	LightAttack = Color3.fromRGB(255, 0, 0),      -- Red
-	StrongAttack = Color3.fromRGB(255, 100, 0),   -- Orange
-	Dash = Color3.fromRGB(100, 255, 100),         -- Green
-	Slide = Color3.fromRGB(255, 255, 0),          -- Yellow
+	LightAttack = Color3.fromRGB(255, 100, 100),  -- Light Red (rojo claro)
+	StrongAttack = Color3.fromRGB(220, 20, 60),   -- Crimson Red (rojo crimson)
+	Dash = Color3.fromRGB(200, 200, 200),         -- Light Gray (gris claro)
+	Slide = Color3.fromRGB(80, 80, 80),           -- Dark Gray (gris oscuro)
 	Block = Color3.fromRGB(100, 100, 255),        -- Blue
 	Default = Color3.fromRGB(255, 255, 255),      -- White (fallback)
 }

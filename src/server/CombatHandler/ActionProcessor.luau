@@ -24,11 +24,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- Module Imports
 local RS = ReplicatedStorage
 local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 
-local Config = require(Core.Config)
-local Enums = require(Core.Enums)
-local Logger = require(Core.Logger).GetInstance()
+local Config = require(CombatSystem.Config.Config)
+local Enums = require(CombatSystem.Data.Enums)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager).GetInstance()
 

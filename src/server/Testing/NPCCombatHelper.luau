@@ -38,8 +38,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 -- Module Imports
-local Core = ReplicatedStorage:WaitForChild("CombatCore"):WaitForChild("Core")
-local Enums = require(Core.Enums)
+local CombatCore = ReplicatedStorage:WaitForChild("CombatCore")
+local Enums = require(CombatCore.Data.Enums)
 
 -- ActionProcessor is in CombatHandler (core system)
 local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")

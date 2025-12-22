@@ -22,9 +22,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- Module Imports
 local RS = ReplicatedStorage
 local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 
-local Logger = require(Core.Logger).GetInstance()
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 
 -- Constants
 local BUFFER_WINDOW = 0.3 -- Seconds to keep buffered input

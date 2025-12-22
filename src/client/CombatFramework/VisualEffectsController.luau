@@ -22,8 +22,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
-local Config = require(Core.Config)
+local Config = require(CombatSystem.Config.Config)
 
 -- Constants
 local LocalPlayer = Players.LocalPlayer

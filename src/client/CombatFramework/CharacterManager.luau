@@ -22,9 +22,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 
-local Logger = require(Core.Logger).GetInstance()
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
 
 -- Constants

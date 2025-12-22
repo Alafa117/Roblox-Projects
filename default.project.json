@@ -7,6 +7,9 @@
       "CombatCore": {
         "$className": "Folder",
         "$path": "src/shared/CombatCore"
+      },
+      "Packages": {
+        "$path": "Packages"
       }
     },
 

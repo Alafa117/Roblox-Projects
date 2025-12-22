@@ -26,10 +26,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- Module Imports
 local RS = ReplicatedStorage
 local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 
-local Enums = require(Core.Enums)
-local Logger = require(Core.Logger).GetInstance()
+local Enums = require(CombatSystem.Data.Enums)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 
 -- Constants
 local INPUT_DEBOUNCE_TIME = 0.1 -- 100ms debounce to prevent duplicate inputs

@@ -48,6 +48,7 @@ local ClientInstance: NetworkClient? = nil
 type NetworkClient = {
 	_remoteEvent: RemoteEvent?,
 	_remoteFunction: RemoteFunction?,
+	_unreliableRemoteEvent: UnreliableRemoteEvent?,
 	_callbacks: {[string]: {(...any) -> ()}},
 	_connections: {RBXScriptConnection},
 }
@@ -66,6 +67,7 @@ function NetworkClient.new(): NetworkClient
 	
 	self._remoteEvent = nil
 	self._remoteFunction = nil
+	self._unreliableRemoteEvent = nil
 	self._callbacks = {}
 	self._connections = {}
 	
@@ -103,6 +105,7 @@ function NetworkClient:_Initialize()
 	-- Get RemoteEvent and RemoteFunction (no yields)
 	self._remoteEvent = networkFolder:FindFirstChild("CombatRemoteEvent")
 	self._remoteFunction = networkFolder:FindFirstChild("CombatRemoteFunction")
+	self._unreliableRemoteEvent = networkFolder:FindFirstChild("CombatUnreliableRemoteEvent")
 	
 	-- Validate existence
 	if not self._remoteEvent or not self._remoteFunction then
@@ -123,6 +126,13 @@ function NetworkClient:_SetupClientListeners()
 	table.insert(self._connections, self._remoteEvent.OnClientEvent:Connect(function(eventType, data)
 		self:_HandleServerEvent(eventType, data)
 	end))
+	
+	-- UnreliableRemoteEvent listener (Server -> Client, for VFX)
+	if self._unreliableRemoteEvent then
+		table.insert(self._connections, self._unreliableRemoteEvent.OnClientEvent:Connect(function(eventType, data)
+			self:_HandleServerEvent(eventType, data)
+		end))
+	end
 end
 
 function NetworkClient:_HandleServerEvent(eventType: string, data: {[string]: any}?)

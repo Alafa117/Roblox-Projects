@@ -24,12 +24,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 
-local Config = require(Core.Config)
+local Config = require(CombatSystem.Config.Config)
 local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
-local Logger = require(Core.Logger).GetInstance()
-local HitboxVisualizer = require(Core.HitboxVisualizer)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
+local HitboxVisualizer = require(CombatSystem.Helpers.HitboxVisualizer)
 
 -- Constants
 local LocalPlayer = Players.LocalPlayer
@@ -152,20 +151,11 @@ function MovementController:StartDynamicMovement(movementType: string, config: M
 		task.cancel(self._movementThread)
 	end
 	
-	if Config.Debug.ShowHitboxes then
-		HitboxVisualizer.ShowAttack(
-			rootPart.Position,
-			initialDirection,
-			Vector3.new(3, 3, 3),
-			config.Speed * config.Duration,
-			movementType == "Dash" and "Dash" or "Slide",
-			config.Duration
-		)
-	end
-	
 	-- Movement loop
 	local elapsed = 0
 	local rate = 0.01
+	local lastTrailTime = 0 -- Track last trail visualization
+	local trailInterval = Config.Debug.MovementTrailInterval or 0.05
 	
 	self._movementThread = task.spawn(function()
 		while elapsed <= config.Duration and self._activeMovement and self._activeMovement.running and rootPart.Parent do
@@ -178,6 +168,17 @@ function MovementController:StartDynamicMovement(movementType: string, config: M
 				local dir = if fixedDirection == "front" then look elseif fixedDirection == "back" then -look elseif fixedDirection == "right" then right else -right
 				local friction = 1 - (elapsed / config.Duration * config.FrictionMultiplier)
 				bodyVelocity.Velocity = dir * config.Speed * friction
+			end
+			
+			-- Create trail visualization boxes
+			if Config.Debug.ShowHitboxes and (elapsed - lastTrailTime) >= trailInterval then
+				HitboxVisualizer.ShowMovementTrail(
+					rootPart.Position,
+					Vector3.new(3, 3, 3),
+					movementType == "Dash" and "Dash" or "Slide",
+					0.3 -- Trail duration
+				)
+				lastTrailTime = elapsed
 			end
 			
 			elapsed += rate

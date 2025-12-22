@@ -33,11 +33,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 local AnimationsFolder = CombatSystem:WaitForChild("Animations")
 
-local Logger = require(Core.Logger).GetInstance()
-local Enums = require(Core.Enums)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
+local Enums = require(CombatSystem.Data.Enums)
 
 -- Shared AnimationManager
 local AnimationManager = require(AnimationsFolder:WaitForChild("AnimationManager"))

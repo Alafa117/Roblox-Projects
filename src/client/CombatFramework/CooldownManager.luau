@@ -31,10 +31,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
 local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 
-local Config = require(Core.Config)
-local Enums = require(Core.Enums)
+local Config = require(CombatSystem.Config.Config)
+local Enums = require(CombatSystem.Data.Enums)
 local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
 
 -- ========================================

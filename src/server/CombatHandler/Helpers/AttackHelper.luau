@@ -31,10 +31,9 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 -- Module Imports
 local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
 
-local Enums = require(Core.Enums)
-local ValidationHelper = require(Core.ValidationHelper)
+local Enums = require(CombatSystem.Data.Enums)
+local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
 
 -- Cache PlayerDataManager (optimization)
 local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
