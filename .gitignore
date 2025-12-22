@@ -14,26 +14,32 @@
 # ===================================
 # ROJO
 # ===================================
-# Sourcemap generado por Rojo
-sourcemap.json
-default.project.json
+# Sourcemap generado por Rojo (SOLO si lo regeneras cada vez)
+# Comentado: algunos equipos lo versionan para debugging
+# sourcemap.json
+
+# Caché de Rojo
+.rojo/
+
+# ❌ NO IGNORAR: default.project.json (necesario para el proyecto)
 
 # ===================================
 # WALLY (Package Manager)
 # ===================================
-# Paquetes instalados
-/Packages/
-/ServerPackages/
-/DevPackages/
+# Paquetes instalados (se regeneran con 'wally install')
+Packages/
+ServerPackages/
+DevPackages/
 
-# Lockfile (opcional: comentar si quieres versionarlo)
-wally.lock
+# ❌ NO IGNORAR: wally.lock (necesario para reproducibilidad)
+# El lockfile asegura que todos usen las mismas versiones de dependencias
 
 # ===================================
 # ROKIT (Toolchain Manager)
 # ===================================
-# Binarios de herramientas
-/.rokit/
+# Solo ignorar binarios descargados, NO la configuración (rokit.toml)
+.rokit/bin/
+.rokit/cache/
 
 # ===================================
 # SISTEMA OPERATIVO
@@ -101,9 +107,28 @@ yarn.lock
 /coverage/
 *.test.lua.snap
 
+# ROBLOX ESPECÍFICO
+# ===================================
+# Assets temporales de Studio
+*.mesh
+*.anim
+
+# Exports de modelos (si son grandes)
+# *.fbx
+# *.obj
+
 # ===================================
 # OTROS
 # ===================================
 # Archivos temporales o borradores (NO todos los .md)
 *.draft.md
+*.temp.md
+
+# Archivos de respaldo
+*_backup.*
+*.backup
+
+# Variables de entorno (si usas)
+.env
+.env.locald
 *.temp.md

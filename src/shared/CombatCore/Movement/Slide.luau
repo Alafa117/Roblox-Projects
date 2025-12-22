@@ -1,8 +1,8 @@
 --[[
 	Module: Slide
 	Type: Combat Mechanic Module (Server)
-	Location: ReplicatedStorage.CombatCore.Mechanics.Slide
-	Path: src/shared/CombatCore/Mechanics/Slide.luau
+	Location: ReplicatedStorage.CombatCore.Movement.Slide
+	Path: src/shared/CombatCore/Movement/Slide.luau
 	
 	Description:
 		Implements the Slide (C) movement mechanic.
@@ -10,24 +10,24 @@
 		Server-authoritative physics for consistency.
 		Useful for dodging high attacks and repositioning.
 	
+	Phase 4 Refactoring:
+		Consolidated duplicate validation code into MovementMechanicBase.
+		Reduced from ~120 lines to ~90 lines (-25%).
+	
 	Dependencies:
-		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger, Utility)
+		- ReplicatedStorage.CombatCore.Logging (Logger)
+		- ReplicatedStorage.CombatCore.Movement (MovementMechanicBase)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
 --]]
 
 -- Services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 -- Module Imports
-local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
-
-local Logger = require(Core.Logger).GetInstance()
-local Utility = require(Core.Utility)
+local Logger = require(script.Parent.Parent.Logging.Logger).GetInstance()
+local Config = require(script.Parent.Parent.Config.Config)
 
 local MovementMechanicBase = require(script.Parent.MovementMechanicBase)
 
@@ -39,7 +39,6 @@ local Slide = {}
 -- ========================================
 
 local IS_SERVER = RunService:IsServer()
-local Config = require(Core.Config)
 
 -- Anti-exploit tracking
 local SlideStartPositions = {} -- {[player] = {Position = Vector3, Time = number, Thread = thread}}
@@ -54,32 +53,18 @@ function Slide:Execute(player: Player, _data: {[string]: any})
 		return
 	end
 	
-	-- Get character (support Players and Test Rigs)
-	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
-	if not Utility.IsCharacterValid(character) then
-		local playerName = if typeof(player) == "Instance" and player:IsA("Player") then player.Name else "TestRig"
-		Logger:Warning("Invalid character for Slide", {player = playerName})
-		return
-	end
-	
-	local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+	-- Phase 4: Use consolidated initialization from MovementMechanicBase
+	local humanoidRootPart = MovementMechanicBase.InitializeMovement(
+		player,
+		SlideStartPositions,
+		"Slide",
+		Config.Slide.Duration,
+		function(p) self:_ValidateSlideDistance(p) end
+	)
 	
 	if not humanoidRootPart then
-		Logger:Warning("HumanoidRootPart not found for Slide", {player = player.Name})
-		return
+		return -- Initialization failed (character invalid or no HumanoidRootPart)
 	end
-	
-	-- Schedule validation after slide duration
-	local validationThread = task.delay(Config.Slide.Duration + 0.1, function()
-		self:_ValidateSlideDistance(player)
-	end)
-	
-	-- Store start position, time, and thread for validation
-	SlideStartPositions[player] = {
-		Position = humanoidRootPart.Position,
-		Time = tick(),
-		Thread = validationThread
-	}
 	
 	-- Broadcast to clients for VFX
 	self:_BroadcastSlide(player)

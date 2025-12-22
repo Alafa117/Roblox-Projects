@@ -28,21 +28,25 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
+local RunService = game:GetService("RunService")
 
 -- Module Imports
-local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
+local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
 
-local Config = require(Core.Config)
-local Enums = require(Core.Enums)
-local Types = require(Core.Types)
-local Logger = require(Core.Logger).GetInstance()
-local DebugLogger = require(Core.DebugLogger)
+local Config = require(CombatSystem.Config.Config)
+local Enums = require(CombatSystem.Data.Enums)
+local Types = require(CombatSystem.Data.Types)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
+local TypeValidators = require(CombatSystem.Validation.TypeValidators)
+
+-- Server modules
+local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
+local RagdollManager = require(CombatHandler.Physics.RagdollManager).GetInstance()
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager).GetInstance()
 local ActionProcessorModule = require(script.Parent.ActionProcessor)
 local DamageCalculator = require(script.Parent.DamageCalculator)
+local RagdollManager = require(script.Parent.Physics.RagdollManager).GetInstance()
 
 -- NPCCombatHelper is in Testing folder (testing utilities, not core system)
 local Testing = ServerScriptService:WaitForChild("Testing")
@@ -168,20 +172,17 @@ end
 -- ========================================
 
 function CombatService:_LoadMechanics()
-	-- Wait for mechanics folder
-	local mechanicsFolder = CombatSystem:WaitForChild("Mechanics")
+	-- Phase 4: Attack mechanics now in server, movement mechanics still in shared
+	local serverMechanicsFolder = script.Parent:WaitForChild("Mechanics")
+	local sharedMechanicsFolder = CombatSystem:WaitForChild("Mechanics")
 	
-	-- Load each mechanic module
-	local mechanicModules = {
-		LightAttack = mechanicsFolder:WaitForChild("LightAttack"),
-		StrongAttack = mechanicsFolder:WaitForChild("StrongAttack"),
-		Dash = mechanicsFolder:WaitForChild("Dash"),
-		Slide = mechanicsFolder:WaitForChild("Slide"),
-	}
+	-- Load attack mechanics from server (server-authoritative)
+	self._mechanics.LightAttack = require(serverMechanicsFolder:WaitForChild("LightAttack"))
+	self._mechanics.StrongAttack = require(serverMechanicsFolder:WaitForChild("StrongAttack"))
 	
-	for name, module in pairs(mechanicModules) do
-		self._mechanics[name] = require(module)
-	end
+	-- Load movement mechanics from shared (client prediction support)
+	self._mechanics.Dash = require(sharedMechanicsFolder:WaitForChild("Dash"))
+	self._mechanics.Slide = require(sharedMechanicsFolder:WaitForChild("Slide"))
 	
 	-- Pass mechanics to ActionProcessor
 	self._actionProcessor:SetMechanics(self._mechanics)
@@ -280,6 +281,11 @@ function CombatService:_OnPlayerRemoving(player: Player)
 	-- Cancel active tasks via ActionProcessor
 	self._actionProcessor:CancelPlayerTasks(player)
 	
+	-- Cleanup ragdoll state if character exists
+	if player.Character then
+		RagdollManager:CleanupCharacter(player.Character)
+	end
+	
 	-- Remove player data
 	PlayerDataManager:RemovePlayerData(player)
 	
@@ -292,7 +298,7 @@ end
 
 function CombatService:_HandleActionRequest(player: Player, data: {[string]: any}): {[string]: any}
 	local actionType = data.ActionType
-	DebugLogger.ServerRequest(player.Name, "ActionRequest", actionType)
+	Logger:ServerRequest(player.Name, "ActionRequest", actionType)
 	
 	-- Validate action first
 	local validationResult = self:_ValidateAction(player, actionType)
@@ -328,7 +334,7 @@ function CombatService:_HandleSlideRequest(player: Player, data: {[string]: any}
 	-- Validate action first
 	local validationResult = self:_ValidateAction(player, Enums.ActionType.C)
 	if not validationResult.Success then
-		DebugLogger.ServerValidationFailed(player.Name, "Slide", validationResult.ErrorMessage or "Unknown")
+		Logger:ServerValidationFailed(player.Name, "Slide", validationResult.ErrorMessage or "Unknown")
 		return validationResult
 	end
 	
@@ -345,6 +351,16 @@ end
 
 function CombatService:_HandleCancelSlide(player: Player): {[string]: any}
 	return self._actionProcessor:HandleCancelSlide(player)
+end
+
+-- ========================================
+-- VALIDATION HELPERS
+-- ========================================
+
+-- Helper to check if a state is any attacking state
+local function IsAttacking(state: string): boolean
+	return state == Enums.CombatState.LightAttacking 
+		or state == Enums.CombatState.StrongAttacking
 end
 
 -- ========================================
@@ -372,7 +388,7 @@ function CombatService:_ValidateAction(player: Player, actionType: string): Type
 		-- M1 allowed during: Idle, Blocking, Attacking (combos), Dashing (cancel), Sliding (cancel)
 		if currentState ~= Enums.CombatState.Idle 
 			and currentState ~= Enums.CombatState.Blocking 
-			and currentState ~= Enums.CombatState.Attacking
+			and not IsAttacking(currentState) -- Allow combos in any attacking state
 			and currentState ~= Enums.CombatState.Dashing
 			and currentState ~= Enums.CombatState.Sliding then
 			return {Success = false, ErrorMessage = "Already performing action", ErrorCode = "BUSY"}
@@ -474,8 +490,7 @@ function CombatService:ApplyDamage(attacker: Player, victim: Player | Model, dam
 	end
 	
 	-- Check if victim is ragdolled (invulnerable during ragdoll)
-	local Utility = require(game.ReplicatedStorage.CombatCore.Core.Utility)
-	if Utility.IsRagdolled(victimCharacter) then
+	if RagdollManager:IsRagdolled(victimCharacter) then
 		local victimName = if isPlayer then victim.Name else victimCharacter.Name
 		Logger:Debug("Damage blocked - victim is ragdolled", {victim = victimName})
 		return nil
@@ -529,6 +544,13 @@ function CombatService:ApplyDamage(attacker: Player, victim: Player | Model, dam
 		HitPosition = victimRoot.Position,
 		Timestamp = os.clock(),
 	}
+	
+	-- ✅ Validate HitData structure
+	TypeValidators.Assert(
+		TypeValidators.HitData,
+		hitData,
+		"CombatService HitData"
+	)
 	
 	-- Notify client (only for players)
 	if isPlayer then

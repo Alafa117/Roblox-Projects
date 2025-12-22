@@ -11,10 +11,8 @@
 		Coordinates between InputHandler, AnimationManager, and network layer.
 	
 	Dependencies:
-		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger, Utility)
-		- ReplicatedStorage.CombatCore.Network.NetworkManager
-		- CombatController.InputHandler
-		- CombatController.InputBuffering
+		- ReplicatedStorage.CombatCore (Enums, Logger, PhysicsHelper)
+		- CombatController submodules (CharacterManager, CooldownManager, ComboManager, etc.)
 	
 	Author: Professional Roblox Scripter
 	Created: December 10, 2025
@@ -31,7 +29,7 @@ local Core = CombatSystem:WaitForChild("Core")
 
 local Enums = require(Core.Enums)
 local Logger = require(Core.Logger).GetInstance()
-local Utility = require(Core.Utility)
+local PhysicsHelper = require(CombatSystem.Helpers.PhysicsHelper)
 
 local CharacterManager = require(script.Parent.CharacterManager)
 local CooldownManager = require(script.Parent.CooldownManager)
@@ -311,7 +309,7 @@ end
 function CombatController:_OnApplyKnockback(knockbackData: {[string]: any})
 	local character = self._characterManager:GetCharacter()
 	if character then
-		Utility.ApplyKnockback(character, knockbackData.Direction, knockbackData.Force)
+		PhysicsHelper.ApplyKnockback(character, knockbackData.Direction, knockbackData.Force)
 	end
 end
 

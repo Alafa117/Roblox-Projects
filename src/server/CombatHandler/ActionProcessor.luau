@@ -29,7 +29,6 @@ local Core = CombatSystem:WaitForChild("Core")
 local Config = require(Core.Config)
 local Enums = require(Core.Enums)
 local Logger = require(Core.Logger).GetInstance()
-local DebugLogger = require(Core.DebugLogger)
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager).GetInstance()
 
@@ -140,7 +139,7 @@ function ActionProcessor:ProcessLightAttack(player: Player, data: {[string]: any
 	local cancelledMovement = data.CancelledMovement or false
 	if cancelledMovement then
 		local entityName = if isPlayer then player.Name else "NPC"
-		DebugLogger.ServerMechanicExecution("LightAttack", entityName, "Cancelled movement for attack")
+		Logger:ServerMechanicExecution("LightAttack", entityName, "Cancelled movement for attack")
 	end
 	
 	-- Execute attack mechanic (works for both Players and NPCs)
@@ -179,12 +178,12 @@ function ActionProcessor:ProcessStrongAttack(player: Player, data: {[string]: an
 	local isPlayer = typeof(player) == "Instance" and player:IsA("Player")
 	local entityName = if isPlayer then player.Name else "NPC"
 	
-	DebugLogger.ServerRequest(entityName, "StrongAttack", "Instant")
+	Logger:ServerRequest(entityName, "StrongAttack", "Instant")
 	
 	-- Check if attack cancelled movement
 	local cancelledMovement = data.CancelledMovement or false
 	if cancelledMovement then
-		DebugLogger.ServerMechanicExecution("StrongAttack", entityName, "Cancelled movement for attack")
+		Logger:ServerMechanicExecution("StrongAttack", entityName, "Cancelled movement for attack")
 	end
 	
 	-- Only use PlayerDataManager for actual Players
@@ -265,7 +264,7 @@ function ActionProcessor:ProcessSlide(player: Player, data: {[string]: any}): {[
 	local isPlayer = typeof(player) == "Instance" and player:IsA("Player")
 	local entityName = if isPlayer then player.Name else "NPC"
 	
-	DebugLogger.ServerRequest(entityName, "Slide", data.Direction or "Forward")
+	Logger:ServerRequest(entityName, "Slide", data.Direction or "Forward")
 	
 	-- Only use PlayerDataManager for actual Players
 	if isPlayer then
@@ -330,24 +329,24 @@ end
 -- ========================================
 
 function ActionProcessor:HandleCancelDash(player: Player): {[string]: any}
-	DebugLogger.ServerRequest(player.Name, "CancelDash", nil)
+	Logger:ServerRequest(player.Name, "CancelDash", nil)
 	
 	local mechanic = self._mechanics.Dash
 	if mechanic and mechanic.CancelDash then
 		mechanic:CancelDash(player)
-		DebugLogger.ServerMechanicExecution("Dash", player.Name, "Cancelled")
+		Logger:ServerMechanicExecution("Dash", player.Name, "Cancelled")
 	end
 	
 	return {Success = true}
 end
 
 function ActionProcessor:HandleCancelSlide(player: Player): {[string]: any}
-	DebugLogger.ServerRequest(player.Name, "CancelSlide", nil)
+	Logger:ServerRequest(player.Name, "CancelSlide", nil)
 	
 	local mechanic = self._mechanics.Slide
 	if mechanic and mechanic.CancelSlide then
 		mechanic:CancelSlide(player)
-		DebugLogger.ServerMechanicExecution("Slide", player.Name, "Cancelled")
+		Logger:ServerMechanicExecution("Slide", player.Name, "Cancelled")
 	end
 	
 	return {Success = true}

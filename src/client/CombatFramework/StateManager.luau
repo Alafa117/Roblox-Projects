@@ -31,27 +31,38 @@ StateManager.__index = StateManager
 -- Valid state transitions (from -> to)
 local VALID_TRANSITIONS = {
 	[Enums.CombatState.Idle] = {
-		[Enums.CombatState.Attacking] = true,
+		[Enums.CombatState.LightAttacking] = true,
+		[Enums.CombatState.StrongAttacking] = true,
 		[Enums.CombatState.Dashing] = true,
 		[Enums.CombatState.Sliding] = true,
 		[Enums.CombatState.Blocking] = true,
 		[Enums.CombatState.Stunned] = true,
 		[Enums.CombatState.Dead] = true,
 	},
-	[Enums.CombatState.Attacking] = {
-		[Enums.CombatState.Attacking] = true, -- Combo chains
+	-- Light Attack state transitions
+	[Enums.CombatState.LightAttacking] = {
+		[Enums.CombatState.LightAttacking] = true, -- M1 combo chains
+		[Enums.CombatState.StrongAttacking] = true, -- M1 -> M2 combo
+		[Enums.CombatState.Idle] = true,
+		[Enums.CombatState.Stunned] = true,
+		[Enums.CombatState.Dead] = true,
+	},
+	-- Strong Attack state transitions
+	[Enums.CombatState.StrongAttacking] = {
 		[Enums.CombatState.Idle] = true,
 		[Enums.CombatState.Stunned] = true,
 		[Enums.CombatState.Dead] = true,
 	},
 	[Enums.CombatState.Dashing] = {
-		[Enums.CombatState.Attacking] = true, -- Cancel into attack
+		[Enums.CombatState.LightAttacking] = true, -- Cancel into M1
+		[Enums.CombatState.StrongAttacking] = true, -- Cancel into M2
 		[Enums.CombatState.Idle] = true,
 		[Enums.CombatState.Stunned] = true,
 		[Enums.CombatState.Dead] = true,
 	},
 	[Enums.CombatState.Sliding] = {
-		[Enums.CombatState.Attacking] = true, -- Cancel into attack
+		[Enums.CombatState.LightAttacking] = true, -- Cancel into M1
+		[Enums.CombatState.StrongAttacking] = true, -- Cancel into M2
 		[Enums.CombatState.Idle] = true,
 		[Enums.CombatState.Stunned] = true,
 		[Enums.CombatState.Dead] = true,
@@ -81,6 +92,18 @@ function StateManager.new(controller)
 	self._activeStateTimers = {} -- Track active timers by action type
 	
 	return self
+end
+
+-- ========================================
+-- STATE HELPERS
+-- ========================================
+
+-- Helper to check if currently in any attacking state
+-- Returns true if state is LightAttacking or StrongAttacking
+function StateManager:IsAttacking(): boolean
+	local state = self._controller._currentState
+	return state == Enums.CombatState.LightAttacking 
+		or state == Enums.CombatState.StrongAttacking
 end
 
 -- ========================================
@@ -151,8 +174,10 @@ function StateManager:_ResetStateIfMatches(actionType: string)
 end
 
 function StateManager:_GetExpectedStateForAction(actionType: string): string
-	if actionType == Enums.ActionType.M1 or actionType == Enums.ActionType.M2 then
-		return Enums.CombatState.Attacking
+	if actionType == Enums.ActionType.M1 then
+		return Enums.CombatState.LightAttacking
+	elseif actionType == Enums.ActionType.M2 then
+		return Enums.CombatState.StrongAttacking
 	elseif actionType == Enums.ActionType.Q then
 		return Enums.CombatState.Dashing
 	elseif actionType == Enums.ActionType.C then
@@ -166,9 +191,9 @@ end
 -- State configuration lookup
 local STATE_CONFIG = {
 	-- M1 state resets quickly (0.4s) to allow M2, but cooldown prevents another M1 combo
-	[Enums.ActionType.M1] = {state = Enums.CombatState.Attacking, resetTime = function() return 0.4 end},
+	[Enums.ActionType.M1] = {state = Enums.CombatState.LightAttacking, resetTime = function() return 0.4 end},
 	-- M2 locks for full stun duration + buffer
-	[Enums.ActionType.M2] = {state = Enums.CombatState.Attacking, resetTime = function() return Config.StrongAttack.StunDuration + 0.3 end},
+	[Enums.ActionType.M2] = {state = Enums.CombatState.StrongAttacking, resetTime = function() return Config.StrongAttack.StunDuration + 0.3 end},
 	[Enums.ActionType.Q] = {state = Enums.CombatState.Dashing, resetTime = function() return Config.Dash.Duration + 0.1 end},
 	[Enums.ActionType.C] = {state = Enums.CombatState.Sliding, resetTime = function() return Config.Slide.Duration + 0.1 end},
 	[Enums.ActionType.F] = {state = Enums.CombatState.Blocking},

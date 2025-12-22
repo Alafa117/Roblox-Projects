@@ -1,8 +1,8 @@
 --[[
 	Module: LightAttack
 	Type: Combat Mechanic Module (Server)
-	Location: ReplicatedStorage.CombatCore.Mechanics.LightAttack
-	Path: src/shared/CombatCore/Mechanics/LightAttack.luau
+	Location: ServerScriptService.CombatHandler.Mechanics.LightAttack
+	Path: src/server/CombatHandler/Mechanics/LightAttack.luau
 	
 	Description:
 		Implements the Light Attack (M1) combat mechanic.
@@ -10,11 +10,17 @@
 		Server-authoritative with range validation and anti-exploit checks.
 		Applies knockback and stun effects to hit targets.
 	
+	Phase 4 Refactoring:
+		- Moved from shared/ to server/ (correct architecture)
+		- Updated imports to reflect server-only location
+	
 	Dependencies:
-		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger, Utility)
+		- ReplicatedStorage.CombatCore (Config, Enums, Types, Logger, ValidationHelper)
+		- ServerScriptService.CombatHandler (BaseAttack, AttackHelper, RagdollManager)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
+	Relocated: December 17, 2025
 --]]
 
 -- Services
@@ -23,27 +29,25 @@ local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 -- Module Imports
-local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
-local Mechanics = CombatSystem:WaitForChild("Mechanics")
+local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
 
-local Config = require(Core.Config)
-local Enums = require(Core.Enums)
-local Types = require(Core.Types)
-local Logger = require(Core.Logger).GetInstance()
-local Utility = require(Core.Utility)
-local DebugLogger = require(Core.DebugLogger)
+local Config = require(CombatSystem.Config.Config)
+local Enums = require(CombatSystem.Data.Enums)
+local Types = require(CombatSystem.Data.Types)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
+local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
+local TypeValidators = require(CombatSystem.Validation.TypeValidators)
 
--- Phase 2: Base class with common attack logic
-local BaseAttack = require(Mechanics.BaseAttack)
-
--- Server-side helper (Phase 1 - Refactored location)
-local AttackHelper = require(ServerScriptService.CombatHandler.Helpers.AttackHelper)
+-- Server-side modules
+local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
+local ServerMechanics = CombatHandler:WaitForChild("Mechanics")
+local BaseAttack = require(ServerMechanics.BaseAttack)
+local AttackHelper = require(CombatHandler.Helpers.AttackHelper)
+local RagdollManager = require(CombatHandler.Physics.RagdollManager).GetInstance()
 
 -- Movement mechanics for cancellation
-local Dash = require(Mechanics.Dash)
-local Slide = require(Mechanics.Slide)
+local Dash = require(CombatSystem.Movement.Dash)
+local Slide = require(CombatSystem.Movement.Slide)
 
 -- Light Attack Module
 local LightAttack = setmetatable({}, BaseAttack)
@@ -61,7 +65,7 @@ local HITBOX_MAX_ANGLE = 120     -- Degrees
 -- ========================================
 
 function LightAttack:Execute(player: Player, data: {[string]: any})
-	DebugLogger.MechanicExecute("LightAttack", player.Name, "Combo: " .. tostring(data.ComboCount or 1))
+	Logger:MechanicExecute("LightAttack", player.Name, "Combo: " .. tostring(data.ComboCount or 1))
 	
 	-- Validate execution (Phase 2: uses base class)
 	if not self:_ValidateExecution(player, "LightAttack") then
@@ -79,17 +83,17 @@ function LightAttack:Execute(player: Player, data: {[string]: any})
 	
 	-- Perform hitbox detection (Phase 2: uses base class)
 	local hitPlayers = self:_DetectHits(attackData, HITBOX_FORWARD_OFFSET, HITBOX_MAX_ANGLE)
-	DebugLogger.MechanicHitDetection("LightAttack", #hitPlayers)
+	Logger:MechanicHitDetection("LightAttack", #hitPlayers)
 	
 	-- Apply damage to hit players
 	for _, victim in ipairs(hitPlayers) do
 		local victimName = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victim.Name
-		DebugLogger.MechanicDamageApplied("LightAttack", victimName, attackData.Damage)
+		Logger:MechanicDamageApplied("LightAttack", victimName, attackData.Damage)
 		self:_ApplyDamage(attackData, victim, comboCount)
 	end
 	
 	-- Broadcast to clients for VFX (Phase 2: uses base class)
-	DebugLogger.MechanicVFXBroadcast("LightAttack")
+	Logger:MechanicVFXBroadcast("LightAttack")
 	self:_BroadcastAttackToClients(player, "LightAttack", hitPlayers, "HitSpark", comboCount)
 end
 
@@ -100,7 +104,7 @@ end
 function LightAttack:_GetAttackData(player: Player, comboCount: number): Types.AttackData
 	-- Get character (support both Players and Test Rigs/NPCs)
 	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
-	local _rootPart = Utility.GetRootPart(character)
+	local humanoid, _rootPart = ValidationHelper.GetCharacterComponents(character)
 	
 	-- Combo multipliers
 	local damageMultiplier = 1 + (comboCount - 1) * 0.1 -- +10% per combo
@@ -124,6 +128,13 @@ function LightAttack:_GetAttackData(player: Player, comboCount: number): Types.A
 		ComboCount = comboCount,
 		Timestamp = os.clock(),
 	}
+	
+	-- ✅ Validate AttackData structure
+	TypeValidators.Assert(
+		TypeValidators.AttackData,
+		attackData,
+		"LightAttack AttackData"
+	)
 	
 	return attackData
 end
@@ -152,7 +163,7 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 	if comboCount == 6 then
 		local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
 		if victimChar then
-			Utility.ApplyRagdoll(victimChar, Config.LightAttack.FinisherRagdollDuration)
+			RagdollManager:ApplyRagdoll(victimChar, Config.LightAttack.FinisherRagdollDuration)
 			
 			local victimName = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victimChar.Name
 			Logger:Debug("Combo finisher ragdoll applied", {

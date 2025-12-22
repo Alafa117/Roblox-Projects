@@ -10,7 +10,7 @@
 		Provides validation and safe access to character components.
 	
 	Dependencies:
-		- ReplicatedStorage.CombatCore.Core (Logger, Utility, Enums)
+		- ReplicatedStorage.CombatCore (Logger, ValidationHelper, Enums)
 	
 	Author: Professional Roblox Scripter
 	Created: December 13, 2025
@@ -25,7 +25,7 @@ local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Logger = require(Core.Logger).GetInstance()
-local Utility = require(Core.Utility)
+local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
 
 -- Constants
 local LocalPlayer = Players.LocalPlayer
@@ -109,7 +109,7 @@ function CharacterManager:_OnCharacterAdded(character: Model)
 	end
 	
 	-- Verify R6 character (system requirement)
-	if not Utility.IsR6Character(character) then
+	if not ValidationHelper.IsR6Avatar(character) then
 		Logger:Warning("Character is not R6, combat system may not work correctly")
 	end
 	
@@ -162,7 +162,7 @@ end
 -- ========================================
 
 function CharacterManager:IsCharacterValid(): boolean
-	return Utility.IsCharacterValid(self._character)
+	return ValidationHelper.IsCharacterValid(self._character)
 end
 
 function CharacterManager:ValidateComponents(): boolean

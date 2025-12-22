@@ -1,8 +1,8 @@
 --[[
 	Module: SpatialHelper
 	Type: Utility Module
-	Location: ReplicatedStorage.CombatCore.Core.SpatialHelper
-	Path: src/shared/CombatCore/Core/SpatialHelper.luau
+	Location: ReplicatedStorage.CombatCore.Helpers.SpatialHelper
+	Path: src/shared/CombatCore/Helpers/SpatialHelper.luau
 	
 	Description:
 		Spatial calculations and positioning utilities for combat system.
@@ -28,7 +28,7 @@
 local Players = game:GetService("Players")
 
 -- Module Imports
-local ValidationHelper = require(script.Parent.ValidationHelper)
+local ValidationHelper = require(script.Parent.Parent.Validation.ValidationHelper)
 
 -- Spatial Helper Module
 local SpatialHelper = {}
@@ -37,8 +37,10 @@ local SpatialHelper = {}
 -- DIRECTION & POSITIONING
 -- ========================================
 
--- Gets direction vector from one character to another
--- Returns nil if either character is invalid
+---Calculates direction vector from one character to another
+---@param fromChar Model Source character
+---@param toChar Model Target character
+---@return Vector3? direction Unit direction vector (nil if invalid characters)
 function SpatialHelper.GetDirectionTo(fromChar: Model, toChar: Model): Vector3?
 	local _, fromRoot = ValidationHelper.GetCharacterComponents(fromChar)
 	local _, toRoot = ValidationHelper.GetCharacterComponents(toChar)
@@ -50,9 +52,11 @@ function SpatialHelper.GetDirectionTo(fromChar: Model, toChar: Model): Vector3?
 	return (toRoot.Position - fromRoot.Position).Unit
 end
 
--- Checks if target is in front of attacker within specified angle
--- @param maxAngle: Maximum angle in degrees (default 90)
--- @return boolean: true if target is within forward cone
+---Checks if target is in front of attacker within specified angle
+---@param attacker Model The attacking character
+---@param target Model The target character
+---@param maxAngle number? Maximum angle in degrees (default: 90)
+---@return boolean isInFront True if target is within forward cone
 function SpatialHelper.IsInFront(attacker: Model, target: Model, maxAngle: number?): boolean
 	maxAngle = maxAngle or 90 -- Default 90 degrees
 	

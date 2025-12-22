@@ -34,7 +34,7 @@ local Core = CombatSystem:WaitForChild("Core")
 
 local Config = require(Core.Config)
 local Enums = require(Core.Enums)
-local DebugLogger = require(Core.DebugLogger)
+local Logger = require(Core.Logger).GetInstance()
 
 -- ========================================
 -- ACTION HANDLER CLASS
@@ -137,15 +137,15 @@ function ActionHandler:_CancelActiveMovement(): (boolean, boolean)
 	-- Always stop the MovementController if it's active
 	if isMoving then
 		self._movementController:StopMovement()
-		DebugLogger.ClientAction("Movement", "Stopped MovementController")
+		Logger:ClientAction("Movement", "Stopped MovementController")
 	end
 	
 	-- Send cancellation events based on state
 	if wasDashing then
-		DebugLogger.ClientAction("Movement", "Cancelled Dash")
+		Logger:ClientAction("Movement", "Cancelled Dash")
 		self._networkManager:SendToServer(Enums.NetworkEvent.CancelDash, {})
 	elseif wasSliding then
-		DebugLogger.ClientAction("Movement", "Cancelled Slide")
+		Logger:ClientAction("Movement", "Cancelled Slide")
 		self._networkManager:SendToServer(Enums.NetworkEvent.CancelSlide, {})
 	end
 	
@@ -184,7 +184,7 @@ function ActionHandler:HandleLightAttack()
 	self._animationController:PlayLightAttack(comboCount)
 	
 	-- Send to server
-	DebugLogger.ClientAction("M1 Request", string.format("Combo: %d, CancelledMovement: %s", comboCount, tostring(cancelledMovement)))
+	Logger:ClientAction("M1 Request", string.format("Combo: %d, CancelledMovement: %s", comboCount, tostring(cancelledMovement)))
 	self._networkManager:SendToServer(Enums.NetworkEvent.RequestAction, {
 		ActionType = Enums.ActionType.M1,
 		ComboCount = comboCount,
@@ -194,11 +194,11 @@ end
 
 -- Handle M2 strong attack
 function ActionHandler:HandleStrongAttack()
-	DebugLogger.ClientAction("_HandleStrongAttack", "Called")
+	Logger:ClientAction("_HandleStrongAttack", "Called")
 	
 	-- Check if can attack
 	if not self._combatController:CanPerformAction(Enums.ActionType.M2) then
-		DebugLogger.ClientValidationFailed("M2", "Cannot perform action")
+		Logger:ClientValidationFailed("M2", "Cannot perform action")
 		return
 	end
 	
@@ -221,7 +221,7 @@ function ActionHandler:HandleStrongAttack()
 	self._animationController:PlayStrongAttack()
 	
 	-- Send to server
-	DebugLogger.ClientAction("M2 Request", string.format("Instant attack, CancelledMovement: %s", tostring(cancelledMovement)))
+	Logger:ClientAction("M2 Request", string.format("Instant attack, CancelledMovement: %s", tostring(cancelledMovement)))
 	self._networkManager:SendToServer(Enums.NetworkEvent.RequestAction, {
 		ActionType = Enums.ActionType.M2,
 		CancelledMovement = cancelledMovement,
@@ -230,11 +230,11 @@ end
 
 -- Handle Q dash
 function ActionHandler:HandleDash(direction: string)
-	DebugLogger.ClientAction("_HandleDash", string.format("Direction: %s", direction))
+	Logger:ClientAction("_HandleDash", string.format("Direction: %s", direction))
 	
 	-- Check if can dash
 	if not self._combatController:CanPerformAction(Enums.ActionType.Q) then
-		DebugLogger.ClientValidationFailed("Dash", "Cannot perform action")
+		Logger:ClientValidationFailed("Dash", "Cannot perform action")
 		return
 	end
 	
@@ -260,11 +260,11 @@ end
 
 -- Handle C slide
 function ActionHandler:HandleSlide(direction: string)
-	DebugLogger.ClientAction("_HandleSlide", string.format("Direction: %s", direction))
+	Logger:ClientAction("_HandleSlide", string.format("Direction: %s", direction))
 	
 	-- Check if can slide
 	if not self._combatController:CanPerformAction(Enums.ActionType.C) then
-		DebugLogger.ClientValidationFailed("Slide", "Cannot perform action")
+		Logger:ClientValidationFailed("Slide", "Cannot perform action")
 		return
 	end
 	
@@ -276,7 +276,7 @@ function ActionHandler:HandleSlide(direction: string)
 	self._animationController:PlaySlide()
 	
 	-- Send to server (for validation/authority)
-	DebugLogger.ClientAction("Slide Request", "Sent to server")
+	Logger:ClientAction("Slide Request", "Sent to server")
 	self._networkManager:SendToServer(Enums.NetworkEvent.RequestSlide, {
 		Direction = direction,
 	})

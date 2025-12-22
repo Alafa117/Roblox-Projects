@@ -35,7 +35,7 @@ local Core = CombatSystem:WaitForChild("Core")
 
 local Config = require(Core.Config)
 local Enums = require(Core.Enums)
-local Utility = require(Core.Utility)
+local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
 
 -- ========================================
 -- CONFIGURATION
@@ -96,7 +96,7 @@ end
 -- Check if action is ready (cooldown completed)
 function CooldownManager:IsReady(actionType: string): boolean
 	local cooldownDuration = self:GetCooldownDuration(actionType)
-	return Utility.IsCooldownReady(self._cooldowns[actionType], cooldownDuration)
+	return ValidationHelper.IsCooldownReady(self._cooldowns[actionType], cooldownDuration)
 end
 
 -- Start cooldown for action (set timestamp to now)
@@ -113,7 +113,7 @@ end
 -- Get remaining cooldown time in seconds
 function CooldownManager:GetRemaining(actionType: string): number
 	local cooldownDuration = self:GetCooldownDuration(actionType)
-	return Utility.GetCooldownRemaining(self._cooldowns[actionType], cooldownDuration)
+	return ValidationHelper.GetCooldownRemaining(self._cooldowns[actionType], cooldownDuration)
 end
 
 -- Get cooldown duration for action from config

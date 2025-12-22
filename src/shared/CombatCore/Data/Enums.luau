@@ -1,8 +1,8 @@
 --[[
 	Module: CombatEnums
 	Type: Enumeration Module
-	Location: ReplicatedStorage.CombatCore.Core.Enums
-	Path: src/shared/CombatCore/Core/Enums.luau
+	Location: ReplicatedStorage.CombatCore.Data.Enums
+	Path: src/shared/CombatCore/Data/Enums.luau
 	
 	Description:
 		Centralized enumerations for the Combat System.
@@ -21,9 +21,8 @@ local Enums = {}
 
 Enums.CombatState = {
 	Idle = "Idle",
-	Attacking = "Attacking", -- DEPRECATED: Use LightAttacking or StrongAttacking
-	LightAttacking = "LightAttacking", -- M1 execution
-	StrongAttacking = "StrongAttacking", -- M2 execution
+	LightAttacking = "LightAttacking", -- M1 execution (Light Attack)
+	StrongAttacking = "StrongAttacking", -- M2 execution (Strong Attack)
 	Blocking = "Blocking",
 	Dashing = "Dashing",
 	Sliding = "Sliding",

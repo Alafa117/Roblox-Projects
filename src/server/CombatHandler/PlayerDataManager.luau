@@ -21,14 +21,13 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
-local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
+local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
 
-local Types = require(Core.Types)
-local Enums = require(Core.Enums)
-local Logger = require(Core.Logger).GetInstance()
-local Utility = require(Core.Utility)
+local Types = require(CombatSystem.Data.Types)
+local Enums = require(CombatSystem.Data.Enums)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
+local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
+local TypeValidators = require(CombatSystem.Validation.TypeValidators)
 
 -- Player Data Manager Class
 local PlayerDataManager = {}
@@ -44,6 +43,8 @@ local NetworkManagerCache = nil
 -- TYPES
 -- ========================================
 
+---@class PlayerDataManager
+---@field _playerData table<Player, PlayerCombatData> Player combat data storage
 type PlayerDataManager = {
 	_playerData: {[Player]: Types.PlayerCombatData},
 }
@@ -52,6 +53,8 @@ type PlayerDataManager = {
 -- CONSTRUCTOR
 -- ========================================
 
+---Creates a new PlayerDataManager instance
+---@return PlayerDataManager PlayerDataManager instance
 function PlayerDataManager.new(): PlayerDataManager
 	local self = setmetatable({}, PlayerDataManager)
 	
@@ -75,6 +78,8 @@ end
 
 -- ========================================
 -- SINGLETON
+---Gets or creates the singleton PlayerDataManager instance
+---@return PlayerDataManager PlayerDataManager instance
 -- ========================================
 
 function PlayerDataManager.GetInstance(): PlayerDataManager
@@ -86,6 +91,9 @@ end
 
 -- ========================================
 -- PLAYER DATA INITIALIZATION
+---Creates and initializes combat data for a player
+---@param player Player The player to create data for
+---@return PlayerCombatData The created combat data
 -- ========================================
 
 function PlayerDataManager:CreatePlayerData(player: Player): Types.PlayerCombatData
@@ -135,6 +143,21 @@ function PlayerDataManager:CreatePlayerData(player: Player): Types.PlayerCombatD
 		Stamina = 100,
 		MaxStamina = 100,
 	}
+	
+	-- ✅ Validate PlayerCombatData structure before storing
+	local isValid, errorMessage = TypeValidators.ValidateWithError(
+		TypeValidators.PlayerCombatData,
+		data,
+		"PlayerCombatData for " .. player.Name
+	)
+	
+	if not isValid then
+		Logger:Error("Failed to create player data - validation failed", {
+			player = player.Name,
+			error = errorMessage
+		})
+		error(errorMessage)
+	end
 	
 	self._playerData[player] = data
 	
@@ -218,7 +241,7 @@ function PlayerDataManager:IsCooldownReady(player: Player, action: string, coold
 		return false
 	end
 	
-	return Utility.IsCooldownReady(data.Cooldowns[action], cooldownDuration)
+	return ValidationHelper.IsCooldownReady(data.Cooldowns[action], cooldownDuration)
 end
 
 function PlayerDataManager:GetCooldownRemaining(player: Player, action: string, cooldownDuration: number): number
@@ -227,7 +250,7 @@ function PlayerDataManager:GetCooldownRemaining(player: Player, action: string, 
 		return 0
 	end
 	
-	return Utility.GetCooldownRemaining(data.Cooldowns[action], cooldownDuration)
+	return ValidationHelper.GetCooldownRemaining(data.Cooldowns[action], cooldownDuration)
 end
 
 -- ========================================
@@ -420,7 +443,7 @@ function PlayerDataManager:ValidatePlayerData(player: Player): boolean
 	end
 	
 	-- Check character validity
-	if not Utility.IsCharacterValid(data.Character) then
+	if not ValidationHelper.IsCharacterValid(data.Character) then
 		return false
 	end
 	

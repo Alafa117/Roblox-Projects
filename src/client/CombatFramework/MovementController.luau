@@ -10,7 +10,7 @@
 		Handles WASD direction detection, camera rotation, and friction-based movement.
 	
 	Dependencies:
-		- ReplicatedStorage.CombatCore.Core (Config, Utility, DebugLogger)
+		- ReplicatedStorage.CombatCore (Config, ValidationHelper, Logger)
 		- game:GetService("UserInputService")
 	
 	Author: Professional Roblox Scripter
@@ -27,8 +27,8 @@ local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
 local Core = CombatSystem:WaitForChild("Core")
 
 local Config = require(Core.Config)
-local Utility = require(Core.Utility)
-local DebugLogger = require(Core.DebugLogger)
+local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
+local Logger = require(Core.Logger).GetInstance()
 local HitboxVisualizer = require(Core.HitboxVisualizer)
 
 -- Constants
@@ -82,8 +82,8 @@ function MovementController:GetCurrentInputDirection(): (Vector3?, string)
 	local character = LocalPlayer.Character
 	if not character then return nil, "front" end
 	
-	local rootPart = Utility.GetRootPart(character)
-	if not rootPart then return nil, "front" end
+	local humanoid, rootPart = ValidationHelper.GetCharacterComponents(character)
+	if not humanoid or not rootPart then return nil, "front" end
 	
 	local look = rootPart.CFrame.LookVector
 	local right = rootPart.CFrame.RightVector
@@ -122,8 +122,8 @@ function MovementController:StartDynamicMovement(movementType: string, config: M
 	local character = LocalPlayer.Character
 	if not character then return end
 	
-	local rootPart = Utility.GetRootPart(character)
-	local humanoid = Utility.GetHumanoid(character)
+	local humanoid, rootPart = ValidationHelper.GetCharacterComponents(character)
+	if not humanoid or not rootPart then return end
 	if not rootPart or not humanoid then return end
 	
 	self:StopMovement()
@@ -186,7 +186,7 @@ function MovementController:StartDynamicMovement(movementType: string, config: M
 		self:StopMovement()
 	end)
 	
-	DebugLogger.ClientAction(movementType, "Started: " .. fixedDirection)
+	Logger:ClientAction(movementType, "Started: " .. fixedDirection)
 end
 
 -- ========================================

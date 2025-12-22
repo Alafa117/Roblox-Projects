@@ -1,8 +1,8 @@
 --[[
 	Module: StrongAttack
 	Type: Combat Mechanic Module (Server)
-	Location: ReplicatedStorage.CombatCore.Mechanics.StrongAttack
-	Path: src/shared/CombatCore/Mechanics/StrongAttack.luau
+	Location: ServerScriptService.CombatHandler.Mechanics.StrongAttack
+	Path: src/server/CombatHandler/Mechanics/StrongAttack.luau
 	
 	Description:
 		Implements the Strong Attack (M2) combat mechanic.
@@ -10,11 +10,17 @@
 		Server-authoritative with charge time validation.
 		Applies significant knockback and longer stun duration.
 	
+	Phase 4 Refactoring:
+		- Moved from shared/ to server/ (correct architecture)
+		- Updated imports to reflect server-only location
+	
 	Dependencies:
-		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger, Utility)
+		- ReplicatedStorage.CombatCore (Config, Enums, Types, Logger, ValidationHelper)
+		- ServerScriptService.CombatHandler (BaseAttack, AttackHelper, RagdollManager)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
+	Relocated: December 17, 2025
 --]]
 
 -- Services
@@ -23,27 +29,25 @@ local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 -- Module Imports
-local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
-local Mechanics = CombatSystem:WaitForChild("Mechanics")
+local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
 
-local Config = require(Core.Config)
-local Enums = require(Core.Enums)
-local Types = require(Core.Types)
-local Logger = require(Core.Logger).GetInstance()
-local Utility = require(Core.Utility)
-local DebugLogger = require(Core.DebugLogger)
+local Config = require(CombatSystem.Config.Config)
+local Enums = require(CombatSystem.Data.Enums)
+local Types = require(CombatSystem.Data.Types)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
+local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
+local TypeValidators = require(CombatSystem.Validation.TypeValidators)
 
--- Phase 2: Base class with common attack logic
-local BaseAttack = require(Mechanics.BaseAttack)
-
--- Server-side helper (Phase 1 - Refactored location)
-local AttackHelper = require(ServerScriptService.CombatHandler.Helpers.AttackHelper)
+-- Server-side modules
+local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
+local ServerMechanics = CombatHandler:WaitForChild("Mechanics")
+local BaseAttack = require(ServerMechanics.BaseAttack)
+local AttackHelper = require(CombatHandler.Helpers.AttackHelper)
+local RagdollManager = require(CombatHandler.Physics.RagdollManager).GetInstance()
 
 -- Movement mechanics for cancellation
-local Dash = require(Mechanics.Dash)
-local Slide = require(Mechanics.Slide)
+local Dash = require(CombatSystem.Movement.Dash)
+local Slide = require(CombatSystem.Movement.Slide)
 
 -- Strong Attack Module
 local StrongAttack = setmetatable({}, BaseAttack)
@@ -67,7 +71,6 @@ local _npcCombatHelper = nil
 
 local function GetPlayerDataManager()
 	if not _playerDataManager then
-		local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
 		local PlayerDataManager = require(CombatHandler:WaitForChild("PlayerDataManager"))
 		_playerDataManager = PlayerDataManager.GetInstance()
 	end
@@ -95,7 +98,7 @@ end
 -- ========================================
 
 function StrongAttack:Execute(player: Player, _data: {[string]: any})
-	DebugLogger.MechanicExecute("StrongAttack", player.Name)
+	Logger:MechanicExecute("StrongAttack", player.Name)
 	
 	-- Validate execution (Phase 2: uses base class)
 	if not self:_ValidateExecution(player, "StrongAttack") then
@@ -111,17 +114,17 @@ function StrongAttack:Execute(player: Player, _data: {[string]: any})
 	
 	-- Perform hitbox detection (Phase 2: uses base class)
 	local hitPlayers = self:_DetectHits(attackData, HITBOX_FORWARD_OFFSET, HITBOX_MAX_ANGLE)
-	DebugLogger.MechanicHitDetection("StrongAttack", #hitPlayers)
+	Logger:MechanicHitDetection("StrongAttack", #hitPlayers)
 	
 	-- Apply damage to hit players
 	for _, victim in ipairs(hitPlayers) do
 		local victimName = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victim.Name
-		DebugLogger.MechanicDamageApplied("StrongAttack", victimName, attackData.Damage)
+		Logger:MechanicDamageApplied("StrongAttack", victimName, attackData.Damage)
 		self:_ApplyDamage(attackData, victim)
 	end
 	
 	-- Broadcast to clients for VFX (Phase 2: uses base class)
-	DebugLogger.MechanicVFXBroadcast("StrongAttack")
+	Logger:MechanicVFXBroadcast("StrongAttack")
 	self:_BroadcastAttackToClients(player, "StrongAttack", hitPlayers, "HeavyHit", nil)
 end
 
@@ -132,7 +135,7 @@ end
 function StrongAttack:_GetAttackData(player: Player): Types.AttackData
 	-- Get character (support both Players and Test Rigs/NPCs)
 	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
-	local _rootPart = Utility.GetRootPart(character)
+	local humanoid, _rootPart = ValidationHelper.GetCharacterComponents(character)
 	
 	-- Instant attack with full damage
 	local attackData: Types.AttackData = {
@@ -146,6 +149,13 @@ function StrongAttack:_GetAttackData(player: Player): Types.AttackData
 		ComboCount = nil,
 		Timestamp = os.clock(),
 	}
+	
+	-- ✅ Validate AttackData structure
+	TypeValidators.Assert(
+		TypeValidators.AttackData,
+		attackData,
+		"StrongAttack AttackData"
+	)
 	
 	return attackData
 end
@@ -189,7 +199,7 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 	-- Apply ragdoll effect
 	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
 	if victimChar then
-		Utility.ApplyRagdoll(victimChar, Config.StrongAttack.RagdollDuration)
+		RagdollManager:ApplyRagdoll(victimChar, Config.StrongAttack.RagdollDuration)
 	end
 end
 
@@ -225,7 +235,7 @@ function StrongAttack:_BreakNPCBlock(victim: Model)
 	
 	-- NPCs don't have stun system, but we can apply ragdoll for the stun duration
 	local stunDuration = Config.Block.BlockBreakStunDuration
-	Utility.ApplyRagdoll(victim, stunDuration)
+	RagdollManager:ApplyRagdoll(victim, stunDuration)
 	
 	Logger:Info("NPC Block broken", {npc = victim.Name})
 end

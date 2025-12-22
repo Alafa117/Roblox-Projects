@@ -1,402 +1,69 @@
 --[[
 	Module: NetworkManager
-	Type: Shared Network Manager
+	Type: Network Factory/Facade
 	Location: ReplicatedStorage.CombatCore.Network.NetworkManager
 	Path: src/shared/CombatCore/Network/NetworkManager.luau
 	
 	Description:
-		Centralized network communication manager for the Combat System.
-		Handles all client-server communication with RemoteEvents and RemoteFunctions.
-		Implements rate limiting, packet validation, and callback registration.
-		Provides separate client and server instances for proper encapsulation.
+		Factory/Facade for network communication in the Combat System.
+		Automatically returns the appropriate network instance based on context:
+		- NetworkServer on server
+		- NetworkClient on client
+		
+		This simplifies usage and maintains backward compatibility while
+		improving architecture through separation of concerns.
+	
+	Phase 4 Refactoring:
+		- Reduced from 405 lines to ~50 lines (-87%)
+		- Delegates to NetworkServer.luau (server-side, ~200 lines)
+		- Delegates to NetworkClient.luau (client-side, ~150 lines)
+		- Maintains backward compatibility with existing code
+		- Follows Factory pattern for automatic instance selection
 	
 	Dependencies:
-		- ReplicatedStorage.CombatCore.Core (Enums, Types, Logger)
+		- ReplicatedStorage.CombatCore.Network.NetworkServer
+		- ReplicatedStorage.CombatCore.Network.NetworkClient
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
+	Refactored: December 19, 2025 (Phase 4 - Task 1)
 --]]
 
 -- Services
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
--- Module Imports
-local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
-local Network = CombatSystem:WaitForChild("Network")
-
-local Enums = require(Core.Enums)
-local Logger = require(Core.Logger).GetInstance()
-
--- Phase 3: Extracted rate limiting to dedicated module
-local RateLimiter = require(Network.RateLimiter)
+-- Module Imports (using relative paths - no yields)
+local NetworkServer = require(script.Parent.NetworkServer)
+local NetworkClient = require(script.Parent.NetworkClient)
 
 -- Constants
 local IS_SERVER = RunService:IsServer()
 local IS_CLIENT = RunService:IsClient()
 
--- Network Manager Class
+-- ========================================
+-- FACTORY/FACADE
+-- ========================================
+
 local NetworkManager = {}
-NetworkManager.__index = NetworkManager
 
--- Singleton Instances
-local ServerInstance: NetworkManager? = nil
-local ClientInstance: NetworkManager? = nil
+-- Get the appropriate network instance based on context
+function NetworkManager.GetServerInstance()
+	return NetworkServer.GetInstance()
+end
 
--- ========================================
--- TYPES
--- ========================================
+function NetworkManager.GetClientInstance()
+	return NetworkClient.GetInstance()
+end
 
-type NetworkManager = {
-	_remoteEvent: RemoteEvent?,
-	_remoteFunction: RemoteFunction?,
-	_handlers: {[string]: (...any) -> any},
-	_callbacks: {[string]: {(...any) -> ()}},
-	_rateLimiter: any?, -- Phase 3: Dedicated RateLimiter instance
-	_connections: {RBXScriptConnection},
-	_isServer: boolean,
-	_isClient: boolean,
-}
-
--- ========================================
--- CONSTRUCTOR
--- ========================================
-
-function NetworkManager.new(isServer: boolean): NetworkManager
-	local self = setmetatable({}, NetworkManager)
-	
-	self._remoteEvent = nil
-	self._remoteFunction = nil
-	self._handlers = {}
-	self._callbacks = {}
-	self._connections = {}
-	self._isServer = isServer
-	self._isClient = not isServer
-	
-	-- Phase 3: Use dedicated RateLimiter module
-	if isServer then
-		self._rateLimiter = RateLimiter.new({
-			WindowSize = 1,
-			MaxRequests = 20,
-			AutoCleanup = true,
-		})
+-- Auto-detect and return appropriate instance (convenience method)
+function NetworkManager.GetInstance()
+	if IS_SERVER then
+		return NetworkServer.GetInstance()
+	elseif IS_CLIENT then
+		return NetworkClient.GetInstance()
 	else
-		self._rateLimiter = nil
+		error("NetworkManager: Cannot determine context (not server or client)")
 	end
-	
-	self:_Initialize()
-	
-	Logger:Info("NetworkManager created", {side = isServer and "Server" or "Client"})
-	
-	return self
-end
-
--- ========================================
--- SINGLETON GETTERS
--- ========================================
-
-function NetworkManager.GetServerInstance(): NetworkManager
-	if not IS_SERVER then
-		Logger:Error("Attempted to get server instance on client")
-		return nil
-	end
-	
-	if not ServerInstance then
-		ServerInstance = NetworkManager.new(true)
-	end
-	return ServerInstance
-end
-
-function NetworkManager.GetClientInstance(): NetworkManager
-	if not IS_CLIENT then
-		Logger:Error("Attempted to get client instance on server")
-		return nil
-	end
-	
-	if not ClientInstance then
-		ClientInstance = NetworkManager.new(false)
-	end
-	return ClientInstance
-end
-
--- ========================================
--- INITIALIZATION
--- ========================================
-
-function NetworkManager:_Initialize()
-	local networkFolder = CombatSystem:WaitForChild("Network")
-	
-	if self._isServer then
-		-- Create or get RemoteEvent
-		self._remoteEvent = networkFolder:FindFirstChild("CombatRemoteEvent")
-		if not self._remoteEvent then
-			self._remoteEvent = Instance.new("RemoteEvent")
-			self._remoteEvent.Name = "CombatRemoteEvent"
-			self._remoteEvent.Parent = networkFolder
-		end
-		
-		-- Create or get RemoteFunction
-		self._remoteFunction = networkFolder:FindFirstChild("CombatRemoteFunction")
-		if not self._remoteFunction then
-			self._remoteFunction = Instance.new("RemoteFunction")
-			self._remoteFunction.Name = "CombatRemoteFunction"
-			self._remoteFunction.Parent = networkFolder
-		end
-		
-		-- Setup server listeners
-		self:_SetupServerListeners()
-		
-		-- Setup player cleanup
-		table.insert(self._connections, Players.PlayerRemoving:Connect(function(player)
-			self:_CleanupPlayer(player)
-		end))
-		
-	else
-		-- Wait for RemoteEvent and RemoteFunction
-		self._remoteEvent = networkFolder:WaitForChild("CombatRemoteEvent")
-		self._remoteFunction = networkFolder:WaitForChild("CombatRemoteFunction")
-		
-		-- Setup client listeners
-		self:_SetupClientListeners()
-	end
-end
-
--- ========================================
--- SERVER LISTENERS
--- ========================================
-
-function NetworkManager:_SetupServerListeners()
-	-- RemoteEvent listener (Client -> Server)
-	table.insert(self._connections, self._remoteEvent.OnServerEvent:Connect(function(player, eventType, data)
-		self:_HandleClientRequest(player, eventType, data)
-	end))
-	
-	-- RemoteFunction listener (Client -> Server with response)
-	self._remoteFunction.OnServerInvoke = function(player, eventType, data)
-		return self:_HandleClientInvoke(player, eventType, data)
-	end
-end
-
-function NetworkManager:_HandleClientRequest(player: Player, eventType: string, data: {[string]: any}?)
-	-- Rate limiting (Phase 3: uses RateLimiter module)
-	if self._rateLimiter and not self._rateLimiter:CheckLimit(player) then
-		Logger:Warning("Rate limit exceeded", {player = player.Name, event = eventType})
-		return
-	end
-	
-	-- Validate event type
-	if not Enums.IsValid(Enums.NetworkEvent, eventType) then
-		Logger:Warning("Invalid event type from client", {player = player.Name, event = eventType})
-		return
-	end
-	
-	-- Call registered handler
-	local handler = self._handlers[eventType]
-	if handler then
-		local success, result = pcall(function()
-			return handler(player, data)
-		end)
-		
-		if not success then
-			Logger:Error("Handler error", {event = eventType, error = result})
-		end
-	end
-end
-
-function NetworkManager:_HandleClientInvoke(player: Player, eventType: string, data: {[string]: any}?): any
-	-- Rate limiting (Phase 3: uses RateLimiter module)
-	if self._rateLimiter and not self._rateLimiter:CheckLimit(player) then
-		Logger:Warning("Rate limit exceeded on invoke", {player = player.Name, event = eventType})
-		return {Success = false, ErrorCode = "RATE_LIMIT"}
-	end
-	
-	-- Validate event type
-	if not Enums.IsValid(Enums.NetworkEvent, eventType) then
-		Logger:Warning("Invalid event type on invoke", {player = player.Name, event = eventType})
-		return {Success = false, ErrorCode = "INVALID_EVENT"}
-	end
-	
-	-- Call registered handler
-	local handler = self._handlers[eventType]
-	if handler then
-		local success, result = pcall(function()
-			return handler(player, data)
-		end)
-		
-		if success then
-			return result
-		else
-			Logger:Error("Handler error on invoke", {event = eventType, error = result})
-			return {Success = false, ErrorCode = "HANDLER_ERROR"}
-		end
-	end
-	
-	return {Success = false, ErrorCode = "NO_HANDLER"}
-end
-
--- ========================================
--- CLIENT LISTENERS
--- ========================================
-
-function NetworkManager:_SetupClientListeners()
-	-- RemoteEvent listener (Server -> Client)
-	table.insert(self._connections, self._remoteEvent.OnClientEvent:Connect(function(eventType, data)
-		self:_HandleServerEvent(eventType, data)
-	end))
-end
-
-function NetworkManager:_HandleServerEvent(eventType: string, data: {[string]: any}?)
-	-- Validate event type
-	if not Enums.IsValid(Enums.NetworkEvent, eventType) then
-		Logger:Warning("Invalid event type from server", {event = eventType})
-		return
-	end
-	
-	-- Call all registered callbacks
-	local callbacks = self._callbacks[eventType]
-	if callbacks then
-		for _, callback in ipairs(callbacks) do
-			task.spawn(function()
-				local success, error = pcall(function()
-					callback(data)
-				end)
-				
-				if not success then
-					Logger:Error("Callback error", {event = eventType, error = error})
-				end
-			end)
-		end
-	end
-end
-
--- ========================================
--- PLAYER CLEANUP (SERVER ONLY)
--- ========================================
-
-function NetworkManager:_CleanupPlayer(player: Player)
-	-- Phase 3: RateLimiter handles its own cleanup automatically
-	-- This method is kept for potential future network cleanup needs
-	Logger:Debug("Player network data cleaned", {player = player.Name})
-end
-
--- ========================================
--- HANDLER REGISTRATION (SERVER)
--- ========================================
-
-function NetworkManager:RegisterHandler(eventType: string, handler: (Player, {[string]: any}?) -> any)
-	if not self._isServer then
-		Logger:Warning("Handlers can only be registered on server")
-		return
-	end
-	
-	self._handlers[eventType] = handler
-end
-
--- ========================================
--- CALLBACK REGISTRATION (CLIENT)
--- ========================================
-
-function NetworkManager:RegisterCallback(eventType: string, callback: ({[string]: any}?) -> ())
-	if not self._isClient then
-		Logger:Warning("Callbacks can only be registered on client")
-		return
-	end
-	
-	if not self._callbacks[eventType] then
-		self._callbacks[eventType] = {}
-	end
-	
-	table.insert(self._callbacks[eventType], callback)
-end
-
--- ========================================
--- SENDING (CLIENT -> SERVER)
--- ========================================
-
-function NetworkManager:SendToServer(eventType: string, data: {[string]: any}?)
-	if not self._isClient then
-		Logger:Warning("SendToServer can only be called on client")
-		return
-	end
-	
-	if not self._remoteEvent then
-		Logger:Error("RemoteEvent not initialized")
-		return
-	end
-	
-	self._remoteEvent:FireServer(eventType, data)
-end
-
--- ========================================
--- SENDING (SERVER -> CLIENT)
--- ========================================
-
-function NetworkManager:SendToClient(player: Player, eventType: string, data: {[string]: any}?)
-	if not self._isServer then
-		Logger:Warning("SendToClient can only be called on server")
-		return
-	end
-	
-	if not self._remoteEvent then
-		Logger:Error("RemoteEvent not initialized")
-		return
-	end
-	
-	self._remoteEvent:FireClient(player, eventType, data)
-end
-
-function NetworkManager:SendToAllClients(eventType: string, data: {[string]: any}?)
-	if not self._isServer then
-		Logger:Warning("SendToAllClients can only be called on server")
-		return
-	end
-	
-	if not self._remoteEvent then
-		Logger:Error("RemoteEvent not initialized")
-		return
-	end
-	
-	self._remoteEvent:FireAllClients(eventType, data)
-end
-
--- ========================================
--- CLEANUP
--- ========================================
-
-function NetworkManager:Destroy()
-	-- Disconnect all connections
-	for _, connection in ipairs(self._connections) do
-		if connection.Connected then
-			connection:Disconnect()
-		end
-	end
-	table.clear(self._connections)
-	
-	-- Clear handlers and callbacks
-	table.clear(self._handlers)
-	table.clear(self._callbacks)
-	
-	-- Clear rate limits
-	if self._rateLimits then
-		table.clear(self._rateLimits)
-	end
-	
-	-- Clear RemoteFunction callback
-	if self._remoteFunction then
-		self._remoteFunction.OnServerInvoke = nil
-	end
-	
-	-- Clear singleton reference
-	if self._isServer then
-		ServerInstance = nil
-	else
-		ClientInstance = nil
-	end
-	
-	Logger:Info("NetworkManager destroyed", {side = self._isServer and "Server" or "Client"})
 end
 
 return NetworkManager

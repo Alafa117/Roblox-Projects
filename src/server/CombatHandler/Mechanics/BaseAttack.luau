@@ -1,8 +1,8 @@
 --[[
 	Module: BaseAttack
 	Type: Base Class Module (Server)
-	Location: ReplicatedStorage.CombatCore.Mechanics.BaseAttack
-	Path: src/shared/CombatCore/Mechanics/BaseAttack.luau
+	Location: ServerScriptService.CombatHandler.Mechanics.BaseAttack
+	Path: src/server/CombatHandler/Mechanics/BaseAttack.luau
 	
 	Description:
 		Base class for attack mechanics (LightAttack, StrongAttack).
@@ -17,12 +17,17 @@
 		- Eliminates ~120 lines of duplicated code
 		- Provides consistent attack behavior across all attack types
 	
+	Phase 4 Refactoring:
+		- Moved from shared/ to server/ (correct architecture)
+		- Now properly located in server-only code
+	
 	Dependencies:
-		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger, Utility)
-		- ServerScriptService.CombatHandler (CombatService)
+		- ReplicatedStorage.CombatCore (Config, Enums, Types, Logger, ValidationHelper)
+		- ServerScriptService.CombatHandler (AttackHelper, RagdollManager)
 	
 	Author: Professional Roblox Scripter
 	Created: December 14, 2025
+	Relocated: December 17, 2025
 --]]
 
 -- Services
@@ -31,23 +36,23 @@ local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 -- Module Imports
-local RS = ReplicatedStorage
-local CombatSystem = RS:WaitForChild("CombatCore")
-local Core = CombatSystem:WaitForChild("Core")
+local CombatSystem = ReplicatedStorage:WaitForChild("CombatCore")
 
-local Config = require(Core.Config)
-local Enums = require(Core.Enums)
-local Types = require(Core.Types)
-local Logger = require(Core.Logger).GetInstance()
-local Utility = require(Core.Utility)
-local DebugLogger = require(Core.DebugLogger)
-local HitboxVisualizer = require(Core.HitboxVisualizer)
+local Config = require(CombatSystem.Config.Config)
+local Enums = require(CombatSystem.Data.Enums)
+local Types = require(CombatSystem.Data.Types)
+local Logger = require(CombatSystem.Logging.Logger).GetInstance()
+local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
+local TypeValidators = require(CombatSystem.Validation.TypeValidators)
+local PhysicsHelper = require(CombatSystem.Helpers.PhysicsHelper)
+local SpatialHelper = require(CombatSystem.Helpers.SpatialHelper)
+local HitboxVisualizer = require(CombatSystem.Helpers.HitboxVisualizer)
 
--- Server-side helper (Phase 1 - Refactored location)
-local AttackHelper = require(ServerScriptService.CombatHandler.Helpers.AttackHelper)
-
--- Cached service references (Phase 2 optimization)
+-- Server-side helper
 local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
+local AttackHelper = require(CombatHandler.Helpers.AttackHelper)
+
+-- Cached service references
 local CombatService = require(CombatHandler:WaitForChild("CombatService"))
 
 -- Base Attack Module
@@ -72,9 +77,9 @@ function BaseAttack:_ValidateExecution(player: Player, mechanicName: string): bo
 	
 	-- Get character (support both Players and Test Rigs/NPCs)
 	local character = if typeof(player) == "Instance" and player:IsA("Player") then player.Character else player
-	if not Utility.IsCharacterValid(character) then
+	if not ValidationHelper.IsCharacterValid(character) then
 		local playerName = if typeof(player) == "Instance" and player:IsA("Player") then player.Name else "TestRig"
-		DebugLogger.MechanicInvalidCharacter(mechanicName, playerName)
+		Logger:MechanicInvalidCharacter(mechanicName, playerName)
 		Logger:Warning("Invalid character for " .. mechanicName, {player = playerName})
 		return false
 	end
@@ -89,7 +94,7 @@ end
 function BaseAttack:_DetectHits(attackData: Types.AttackData, forwardOffset: number, maxAngle: number): {Player | Model}
 	local attacker = attackData.Attacker
 	local character = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
-	local rootPart = Utility.GetRootPart(character)
+	local humanoid, rootPart = ValidationHelper.GetCharacterComponents(character)
 	
 	if not rootPart then
 		return {}
@@ -115,7 +120,7 @@ function BaseAttack:_DetectHits(attackData: Types.AttackData, forwardOffset: num
 	end
 	
 	-- Get entities in hitbox
-	local hitEntities = Utility.GetPlayersInRadius(origin, attackData.Range, {character})
+	local hitEntities = SpatialHelper.GetPlayersInRadius(origin, attackData.Range, {character})
 	
 	-- Filter valid targets
 	local validTargets = {}
@@ -126,7 +131,7 @@ function BaseAttack:_DetectHits(attackData: Types.AttackData, forwardOffset: num
 				else victim
 			
 			-- Check if target is in attack cone
-			if Utility.IsInFront(character, victimChar, maxAngle) then
+			if SpatialHelper.IsInFront(character, victimChar, maxAngle) then
 				table.insert(validTargets, victim)
 			end
 		end
@@ -182,7 +187,7 @@ function BaseAttack:_ApplyKnockbackToVictim(
 	end
 	
 	-- Calculate knockback direction
-	local direction = Utility.GetDirectionTo(attackerChar, victimChar)
+	local direction = SpatialHelper.GetDirectionTo(attackerChar, victimChar)
 	if not direction then
 		return
 	end
@@ -194,7 +199,7 @@ function BaseAttack:_ApplyKnockbackToVictim(
 	end
 	
 	local knockbackForce = attackData.Knockback * knockbackMultiplier
-	Utility.ApplyKnockback(victimChar, knockbackDirection, knockbackForce)
+	PhysicsHelper.ApplyKnockback(victimChar, knockbackDirection, knockbackForce)
 	
 	-- Notify client (only for players)
 	if typeof(victim) == "Instance" and victim:IsA("Player") then
