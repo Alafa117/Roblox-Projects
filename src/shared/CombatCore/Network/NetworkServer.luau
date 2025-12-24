@@ -95,7 +95,7 @@ function NetworkServer.new(): NetworkServer
 		AutoCleanup = true,
 	})
 	
-	-- Initialize timestamp tracking for replay attack prevention (Anti-Exploit: TODO #8)
+	-- Initialize timestamp tracking for replay attack prevention (protects against packet replay exploits)
 	self._recentTimestamps = {}
 	self._maxRecentTimestamps = 20  -- Track last 20 timestamps per player
 	
@@ -146,7 +146,7 @@ function NetworkServer:_Initialize()
 		self._remoteFunction.Parent = networkFolder
 	end
 	
-	-- Create or get UnreliableRemoteEvent for VFX (Performance: TODO #9)
+	-- Create or get UnreliableRemoteEvent for VFX (optimized for visual effects)
 	-- Used for non-critical visual effects to reduce latency and network traffic
 	self._unreliableRemoteEvent = networkFolder:FindFirstChild("CombatUnreliableRemoteEvent")
 	if not self._unreliableRemoteEvent then
@@ -159,7 +159,7 @@ function NetworkServer:_Initialize()
 	self:_SetupServerListeners()
 	
 	-- Setup periodic timestamp cleanup (every 30 seconds)
-	-- Prevents memory buildup from old timestamps (Anti-Exploit: TODO #8)
+	-- Prevents memory buildup from old timestamps (automatic memory management)
 	local lastCleanup = os.clock()
 	table.insert(self._connections, game:GetService("RunService").Heartbeat:Connect(function()
 		local now = os.clock()
@@ -222,7 +222,7 @@ function NetworkServer:_HandleClientRequest(player: Player, eventType: string, d
 		return
 	end
 	
-	-- Server-side cooldown validation (Anti-Exploit: TODO #7)
+	-- Server-side cooldown validation (prevents action spam exploits)
 	if CooldownManager then
 		local actionType = self:_GetActionTypeFromRequest(eventType, data)
 		if actionType then
@@ -295,7 +295,7 @@ function NetworkServer:_HandleClientRequest(player: Player, eventType: string, d
 		if not success then
 			Logger:Error("Handler error", {event = eventType, error = result})
 		else
-			-- Record action for cooldown tracking on success (Anti-Exploit: TODO #7)
+			-- Record action for cooldown tracking on success (prevents rapid-fire exploits)
 			if CooldownManager then
 				local actionType = self:_GetActionTypeFromRequest(eventType, data)
 				if actionType then
@@ -333,7 +333,7 @@ function NetworkServer:_HandleClientInvoke(player: Player, eventType: string, da
 		return {Success = false, ErrorCode = "RATE_LIMIT"}
 	end
 	
-	-- Server-side cooldown validation (Anti-Exploit: TODO #7)
+	-- Server-side cooldown validation (prevents action spam exploits)
 	if CooldownManager then
 		local actionType = self:_GetActionTypeFromRequest(eventType, data)
 		if actionType then
@@ -404,7 +404,7 @@ function NetworkServer:_HandleClientInvoke(player: Player, eventType: string, da
 		end)
 		
 		if success then
-			-- Record action for cooldown tracking on success (Anti-Exploit: TODO #7)
+			-- Record action for cooldown tracking on success (prevents rapid-fire exploits)
 			if CooldownManager then
 				local actionType = self:_GetActionTypeFromRequest(eventType, data)
 				if actionType then

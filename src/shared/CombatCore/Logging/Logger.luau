@@ -1,37 +1,47 @@
 --[[
 	Module: CombatLogger
-	Type: Unified Logging System
+	Type: Unified Logging System (Singleton)
 	Location: ReplicatedStorage.CombatCore.Logging.Logger
 	Path: src/shared/CombatCore/Logging/Logger.luau
 	
 	Description:
-		Unified logging system for the Combat System.
-		Provides structured logging with levels, timestamps, context, and categorized debug.
-		Consolidates functionality from Logger and DebugLogger into one cohesive system.
+		Unified logging system for the Combat System with structured logging and debug categorization.
+		Provides multiple log levels (Debug/Info/Warning/Error/Critical) with timestamps and context.
+		Consolidates functionality from Logger and DebugLogger into one cohesive singleton system.
 		
-		Phase 2 Refactoring:
+	Features:
+		- Structured logging with 5 severity levels (Debug, Info, Warning, Error, Critical)
+		- Categorized debug logging (Client/Server/Mechanic/Validation)
+		- Configurable filters via DebugConfig toggles
+		- Timestamps using os.date() for human-readable logs
+		- Stack traces for errors and critical issues
+		- Context data support (tables logged as formatted strings)
+		- Singleton pattern for global access
+		
+	Phase 2 Refactoring:
 		Integrated DebugLogger functionality for single logging system.
 		Supports both structured logging (Info/Warn/Error) and categorized debug logs.
 	
-	Features:
-		- Structured logging with levels (Debug/Info/Warning/Error/Critical)
-		- Categorized debug logging (Client/Server/Mechanic/Validation)
-		- Configurable filters and toggles
-		- Timestamps and stack traces
-		- Context data support
-	
 	Usage:
+		local Logger = require(CombatCore.Logging.Logger).GetInstance()
+		
 		-- Structured logging
 		Logger:Debug("Player attacked", {player = player.Name, damage = 10})
-		Logger:Error("Invalid state", {state = "Unknown"})
+		Logger:Info("Combat started", {players = 2})
+		Logger:Warning("Invalid action", {action = "Unknown"})
+		Logger:Error("Failed to apply damage", {error = "Character not found"})
+		Logger:Critical("System failure", {component = "NetworkServer"})
 		
-		-- Categorized debug (from DebugLogger)
+		-- Categorized debug (from integrated DebugLogger)
 		Logger:ClientAction("Attack", "LightAttack executed")
 		Logger:ServerRequest(player.Name, "PerformAction", "Dash")
-	
+		Logger:MechanicExecution("Dash", "Started with direction: Forward")
+		Logger:ValidationCheck("Movement", "Distance validated: 15.3 studs")
+		
 	Author: Professional Roblox Scripter
 	Created: December 9, 2025
-	Refactored: December 18, 2025 (Phase 2 - Task 3)
+	Updated: December 18, 2025 - Phase 2: Integrated DebugLogger functionality
+	Updated: December 23, 2025 - Enhanced documentation with usage examples
 --]]
 
 -- Services

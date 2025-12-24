@@ -1,13 +1,22 @@
 --[[
 	Module: HitboxVisualizer
-	Type: Debug Utility Module
+	Type: Debug Utility Module (Development Tool)
 	Location: ReplicatedStorage.CombatCore.Helpers.HitboxVisualizer
 	Path: src/shared/CombatCore/Helpers/HitboxVisualizer.luau
 	
 	Description:
-		Debug utility for visualizing combat hitboxes in real-time.
+		Debug utility for visualizing combat hitboxes in real-time during development.
 		Shows hitbox size, position, range, and direction for development/testing.
+		Creates semi-transparent wireframe boxes with colored edges in workspace.
 		Only active when Config.Debug.ShowHitboxes is enabled.
+		
+	Features:
+		- Wireframe visualization (Material.ForceField with 95% transparency)
+		- Colored edge rendering with SelectionBox
+		- Movement trail tracking for Dash/Slide mechanics
+		- Attack direction arrows with customizable length
+		- Range sphere visualization for hit detection
+		- Configurable colors per attack type (M1, M2, Dash, Slide)
 	
 	Usage:
 		-- Legacy API (backward compatible)

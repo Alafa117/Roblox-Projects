@@ -92,7 +92,7 @@ end
 -- RAGDOLL LIFECYCLE
 -- ========================================
 
-function RagdollManager:ApplyRagdoll(character: Model, duration: number)
+function RagdollManager:ApplyRagdoll(character: Model, duration: number, knockbackDirection: Vector3?, knockbackForce: number?)
 	-- Validate character
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not humanoid then
@@ -110,6 +110,9 @@ function RagdollManager:ApplyRagdoll(character: Model, duration: number)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
 	humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 	
+	-- Get HumanoidRootPart for initial physics impulse
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	
 	-- Initialize ragdoll data
 	local ragdollData: RagdollData = {
 		OriginalCollisionStates = {},
@@ -119,23 +122,45 @@ function RagdollManager:ApplyRagdoll(character: Model, duration: number)
 	
 	-- Prepare body parts for ragdoll physics
 	for _, part in ipairs(character:GetDescendants()) do
-		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+		if part:IsA("BasePart") then
 			-- Store original collision state
 			ragdollData.OriginalCollisionStates[part] = part.CanCollide
 			
-			-- Enable collision for natural ragdoll physics
-			part.CanCollide = true
+			-- HumanoidRootPart: Keep CanCollide false, others true for natural physics
+			if part.Name == "HumanoidRootPart" then
+				part.CanCollide = false
+			else
+				part.CanCollide = true
+			end
 			
-			-- Zero velocities to start fresh
-			part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-			part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-			
-			-- Remove any existing BodyMovers
+			-- Remove any existing BodyMovers that might interfere
 			for _, child in ipairs(part:GetChildren()) do
 				if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or child:IsA("BodyGyro") then
 					child:Destroy()
 				end
 			end
+		end
+	end
+	
+	-- Apply initial physics to make character fall (AFTER cleaning up body parts)
+	if rootPart and rootPart:IsA("BasePart") then
+		-- Set network ownership to server for consistent physics
+		rootPart:SetNetworkOwner(nil)
+		
+		-- Apply knockback velocity if provided, otherwise just fall
+		if knockbackDirection and knockbackForce then
+			-- Combine knockback with downward gravity for natural ragdoll fall
+			local ragdollVelocity = knockbackDirection.Unit * knockbackForce + Vector3.new(0, -10, 0)
+			rootPart.AssemblyLinearVelocity = ragdollVelocity
+			
+			Logger:Debug("Ragdoll with knockback", {
+				character = character.Name,
+				force = knockbackForce,
+				direction = tostring(knockbackDirection)
+			})
+		else
+			-- Just apply downward velocity for natural collapse
+			rootPart.AssemblyLinearVelocity = Vector3.new(0, -20, 0)
 		end
 	end
 	

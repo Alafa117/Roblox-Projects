@@ -37,6 +37,7 @@ local Types = require(CombatSystem.Data.Types)
 local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
 local TypeValidators = require(CombatSystem.Validation.TypeValidators)
+local SpatialHelper = require(CombatSystem.Helpers.SpatialHelper)
 
 -- Server-side modules
 local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
@@ -151,25 +152,37 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 		return
 	end
 	
-	-- Apply knockback if not blocked (Phase 2: uses base class)
-	if hitData.HitResult ~= Enums.HitResult.Blocked and hitData.HitResult ~= Enums.HitResult.PerfectBlock then
-		self:_ApplyKnockbackToVictim(attackData, victim)
-	end
-	
 	-- Apply stun (Phase 2: uses base class)
 	self:_ApplyStunToVictim(victim, Config.LightAttack.StunDuration)
 	
-	-- Apply ragdoll on 6th combo (finisher)
+	-- Apply knockback and ragdoll on 6th combo (finisher)
 	if comboCount == 6 then
 		local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
-		if victimChar then
-			RagdollManager:ApplyRagdoll(victimChar, Config.LightAttack.FinisherRagdollDuration)
+		if victimChar and hitData.HitResult ~= Enums.HitResult.Blocked and hitData.HitResult ~= Enums.HitResult.PerfectBlock then
+			-- Calculate knockback direction
+			local attacker = attackData.Attacker
+			local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
 			
-			local victimName = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victimChar.Name
-			Logger:Debug("Combo finisher ragdoll applied", {
-				victim = victimName,
-				duration = Config.LightAttack.FinisherRagdollDuration
-			})
+			if attackerChar then
+				local SpatialHelper = require(CombatSystem.Helpers.SpatialHelper)
+				local direction = SpatialHelper.GetDirectionTo(attackerChar, victimChar)
+				
+				if direction then
+					-- Apply ragdoll WITH integrated knockback physics
+					RagdollManager:ApplyRagdoll(
+						victimChar, 
+						Config.LightAttack.FinisherRagdollDuration,
+						direction, -- Knockback direction
+						Config.LightAttack.FinisherKnockback -- Knockback force
+					)
+					
+					Logger:Debug("Combo finisher applied", {
+						victim = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victimChar.Name,
+						knockback = Config.LightAttack.FinisherKnockback,
+						ragdollDuration = Config.LightAttack.FinisherRagdollDuration
+					})
+				end
+			end
 		end
 	end
 end

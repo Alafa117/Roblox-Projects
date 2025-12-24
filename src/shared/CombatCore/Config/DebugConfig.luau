@@ -1,17 +1,25 @@
 --[[
 	Module: DebugConfig
-	Type: Configuration Module
+	Type: Configuration Module (Development Settings)
 	Location: ReplicatedStorage.CombatCore.Config.DebugConfig
 	Path: src/shared/CombatCore/Config/DebugConfig.luau
 	
 	Description:
-		Configuration for debug visualization settings.
-		Contains hitbox visualization, colors, transparency, and duration parameters.
+		Configuration for debug visualization and logging settings.
+		Controls hitbox visualization, movement trails, colors, transparency, and debug logging.
 		
-		Phase 3 Refactoring - Extracted from Config.luau
+	Features:
+		- Hitbox visualization toggle (ShowHitboxes)
+		- Movement trail tracking for Dash/Slide (0.05s intervals)
+		- Wireframe style with 95% transparency and thick colored edges
+		- Custom colors per attack type (M1: light red, M2: crimson, Dash: gray, Slide: dark gray)
+		- Categorized debug logging toggles (Client/Server/Mechanic/Validation)
+		
+	Phase 3 Refactoring - Extracted from Config.luau
 	
 	Author: Professional Roblox Scripter
 	Created: December 18, 2025 (Phase 3 - Task 1)
+	Updated: December 23, 2025 - Enhanced documentation with feature descriptions
 --]]
 
 local DebugConfig = {}

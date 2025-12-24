@@ -74,8 +74,8 @@ function RateLimiter.new(config: RateLimiterConfig?): RateLimiter
 		WindowSize = 1,      -- 1 second window
 		MaxRequests = 20,    -- 20 requests per second
 		AutoCleanup = true,
-		MaxViolations = 10,  -- Kick after 10 violations (Anti-Exploit: TODO #10)
-		ViolationDecayTime = 60, -- Decay violations after 60s
+		MaxViolations = 10,  -- Auto-kick after 10 violations (Anti-Exploit Protection)
+		ViolationDecayTime = 60, -- Decay violations after 60s of good behavior
 		KickMessage = "Rate limit exceeded. Possible exploit detected.",
 	}
 	
@@ -125,7 +125,7 @@ function RateLimiter:CheckLimit(player: Player): boolean
 		return true
 	end
 	
-	-- Decay violations over time (Anti-Exploit: TODO #10)
+	-- Decay violations over time (forgiveness system for legitimate players)
 	if self._config.ViolationDecayTime and limitData.LastViolationTime then
 		local timeSinceLastViolation = now - limitData.LastViolationTime
 		if timeSinceLastViolation >= self._config.ViolationDecayTime then
@@ -150,7 +150,7 @@ function RateLimiter:CheckLimit(player: Player): boolean
 	
 	-- Check if limit exceeded in current window
 	if limitData.RequestCount >= self._config.MaxRequests then
-		-- Increment violation count (Anti-Exploit: TODO #10)
+		-- Increment violation count (tracks repeated abuse)
 		limitData.Violations = limitData.Violations + 1
 		limitData.LastViolationTime = now
 		
@@ -161,7 +161,7 @@ function RateLimiter:CheckLimit(player: Player): boolean
 			violations = limitData.Violations,
 		})
 		
-		-- Check for auto-kick threshold (Anti-Exploit: TODO #10)
+		-- Check for auto-kick threshold (progressive punishment system)
 		if self._config.MaxViolations and limitData.Violations >= self._config.MaxViolations then
 			self:_KickPlayer(player, limitData.Violations)
 		elseif self._config.MaxViolations then
@@ -230,7 +230,7 @@ end
 	@param player - Player to kick
 	@param violationCount - Total violations before kick
 	
-	Anti-Exploit: TODO #10
+	Implements progressive punishment system with auto-kick threshold.
 ]]
 function RateLimiter:_KickPlayer(player: Player, violationCount: number)
 	Logger:Critical("Auto-kicking player for rate limit violations", {

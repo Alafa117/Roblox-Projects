@@ -37,6 +37,7 @@ local Types = require(CombatSystem.Data.Types)
 local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
 local TypeValidators = require(CombatSystem.Validation.TypeValidators)
+local SpatialHelper = require(CombatSystem.Helpers.SpatialHelper)
 
 -- Server-side modules
 local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
@@ -180,9 +181,6 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 		knockbackMultiplier = 0.1
 	end
 	
-	-- Apply heavy knockback with upward component (Phase 2: uses base class)
-	self:_ApplyKnockbackToVictim(attackData, victim, knockbackMultiplier, 0.3)
-	
 	-- Apply longer stun (Phase 2: uses base class)
 	self:_ApplyStunToVictim(victim, Config.StrongAttack.StunDuration)
 	
@@ -196,10 +194,30 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 		end
 	end
 	
-	-- Apply ragdoll effect
+	-- Apply ragdoll with integrated knockback physics
 	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
 	if victimChar then
-		RagdollManager:ApplyRagdoll(victimChar, Config.StrongAttack.RagdollDuration)
+		-- Calculate knockback direction
+		local attacker = attackData.Attacker
+		local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
+		
+		if attackerChar then
+			local direction = SpatialHelper.GetDirectionTo(attackerChar, victimChar)
+			
+			if direction then
+				-- Add upward component for strong attack
+				local knockbackDirection = (direction + Vector3.new(0, 0.3, 0)).Unit
+				local knockbackForce = attackData.Knockback * knockbackMultiplier
+				
+				-- Apply ragdoll WITH integrated knockback
+				RagdollManager:ApplyRagdoll(
+					victimChar, 
+					Config.StrongAttack.RagdollDuration,
+					knockbackDirection,
+					knockbackForce
+				)
+			end
+		end
 	end
 end
 
