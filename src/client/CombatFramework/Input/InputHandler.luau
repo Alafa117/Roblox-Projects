@@ -1,8 +1,8 @@
 --[[
 	Module: InputHandler
-	Type: Client Controller Module
-	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.InputHandler
-	Path: src/client/CombatFramework/InputHandler.luau
+	Type: Client Input Module
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.Input.InputHandler
+	Path: src/client/CombatFramework/Input/InputHandler.luau
 	
 	Description:
 		Handles all player input for the Combat System.
@@ -11,11 +11,12 @@
 		Implements input buffering and state-aware input blocking.
 	
 	Dependencies:
-		- ReplicatedStorage.CombatCore.Core.Enums
-		- ReplicatedStorage.CombatCore.Core.Logger
+		- ReplicatedStorage.CombatCore.Core (Enums, Logger)
+		- Input.InputBuffering (for buffering system)
 	
 	Author: Professional Roblox Scripter
 	Created: December 9, 2025
+	Updated: December 23, 2025 - Moved to Input/ subfolder
 --]]
 
 -- Services

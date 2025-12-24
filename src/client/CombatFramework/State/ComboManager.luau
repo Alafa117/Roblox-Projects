@@ -1,8 +1,8 @@
 --[[
 	Module: ComboManager
-	Type: Client Utility Module
-	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.ComboManager
-	Path: src/client/CombatFramework/ComboManager.luau
+	Type: Client Combo Management Module
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.State.ComboManager
+	Path: src/client/CombatFramework/State/ComboManager.luau
 	
 	Description:
 		Manages combat combo system including count tracking, timing, and window validation.

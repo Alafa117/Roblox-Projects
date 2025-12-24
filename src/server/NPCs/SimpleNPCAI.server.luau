@@ -1,7 +1,8 @@
 --[[
 	Script: SimpleNPCAI (Stationary Training Dummies)
 	Type: Server NPC AI Script
-	Location: ServerScriptService.NPCs
+	Location: ServerScriptService.NPCs.SimpleNPCAI
+	Path: src/server/NPCs/SimpleNPCAI.server.luau
 	
 	Description:
 		STATIONARY training dummies for Combat System testing.
@@ -9,7 +10,7 @@
 		They are TEST DUMMIES that only maintain their assigned state.
 		YOU attack THEM for testing purposes.
 		
-	Features:
+		Features:
 		- Stationary position (no movement)
 		- Rotation towards player (visual only)
 		- Specific state per NPC based on name
@@ -18,6 +19,7 @@
 		- NO ATTACKS - NPCs don't damage the player
 		
 	NPC Naming Convention (for Testing):
+	Reorganized: December 23, 2025 - Moved to NPCs/ folder
 		Name your NPCs to assign specific TEST BEHAVIOR:
 		- "Dummy_Block" or "Shield" or "Defend" → Constantly blocking (test block breaking, damage reduction)
 		- "Dummy_M1" or "Light" → Stationary dummy (test M1 combos)

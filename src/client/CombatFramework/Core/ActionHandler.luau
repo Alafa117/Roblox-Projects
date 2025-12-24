@@ -1,8 +1,8 @@
 --[[
 	Module: ActionHandler
 	Type: Client Action Handler
-	Location: ReplicatedFirst.CombatFramework.ActionHandler
-	Path: src/client/CombatFramework/ActionHandler.luau
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.Core.ActionHandler
+	Path: src/client/CombatFramework/Core/ActionHandler.luau
 	
 	Description:
 		Handles all combat action execution on the client.
@@ -17,7 +17,9 @@
 		- Network synchronization for all actions
 	
 	Dependencies:
-		- StateManager, CooldownManager, AnimationController, MovementController
+		- State/ (StateManager, CooldownManager, ComboManager)
+		- Animation/ (AnimationController)
+		- Movement/ (MovementController)
 		- VisualEffectsController, NetworkManager
 		- Config, Enums, Logger, DebugLogger
 	

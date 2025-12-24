@@ -9,14 +9,19 @@
 		Charged heavy attack with increased damage, range, and knockback.
 		Server-authoritative with charge time validation.
 		Applies significant knockback and longer stun duration.
+		Inherits from BaseAttack for common functionality.
 	
 	Phase 4 Refactoring:
 		- Moved from shared/ to server/ (correct architecture)
 		- Updated imports to reflect server-only location
 	
+Reorganized: December 23, 2025 - Moved to Mechanics/ subfolder
+	
 	Dependencies:
 		- ReplicatedStorage.CombatCore (Config, Enums, Types, Logger, ValidationHelper)
-		- ServerScriptService.CombatHandler (BaseAttack, AttackHelper, RagdollManager)
+		- CombatHandler.Mechanics (BaseAttack)
+		- CombatHandler.Helpers (AttackHelper)
+		- CombatHandler.Physics (RagdollManager)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025

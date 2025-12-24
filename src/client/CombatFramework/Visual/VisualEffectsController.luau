@@ -1,19 +1,21 @@
 --[[
 	Module: VisualEffectsController
 	Type: Client Visual Effects Module
-	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.VisualEffectsController
-	Path: src/client/CombatFramework/VisualEffectsController.luau
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.Visual.VisualEffectsController
+	Path: src/client/CombatFramework/Visual/VisualEffectsController.luau
 	
 	Description:
 		Manages visual effects for combat actions (highlights, particles, etc.).
 		Separates VFX logic from core combat controller for better modularity.
 		Handles creation, cleanup, and timing of visual feedback.
+		Provides automatic cleanup and memory management for effects.
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core.Config
 	
 	Author: Professional Roblox Scripter
 	Created: December 13, 2025
+	Updated: December 23, 2025 - Moved to Visual/ subfolder
 --]]
 
 -- Services

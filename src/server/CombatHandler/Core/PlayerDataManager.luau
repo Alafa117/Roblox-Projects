@@ -8,13 +8,14 @@
 		Manages combat-related data for all players on the server.
 		Tracks player states, cooldowns, combos, and combat statistics.
 		Provides thread-safe access to player combat data.
-		Implements data cleanup on player leave.
+		Implements automatic data cleanup on player leave to prevent memory leaks.
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core (Types, Enums, Logger)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
+	Reorganized: December 23, 2025 - Moved to Core/ subfolder
 --]]
 
 -- Services

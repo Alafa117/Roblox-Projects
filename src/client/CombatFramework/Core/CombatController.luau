@@ -1,21 +1,22 @@
 --[[
 	Module: CombatController
 	Type: Client Main Controller
-	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.CombatController
-	Path: src/client/CombatFramework/CombatController.luau
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.Core.CombatController
+	Path: src/client/CombatFramework/Core/CombatController.luau
 	
 	Description:
 		Main client-side controller for the Combat System.
 		Manages input handling, server communication, local state, and visual feedback.
 		Implements client-side prediction for responsive combat feel.
-		Coordinates between InputHandler, AnimationManager, and network layer.
+		Coordinates between all submodules (Input, State, Animation, Movement, Visual, Character).
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore (Enums, Logger, PhysicsHelper)
-		- CombatController submodules (CharacterManager, CooldownManager, ComboManager, etc.)
+		- CombatFramework submodules (CharacterManager, StateManager, InputHandler, etc.)
 	
 	Author: Professional Roblox Scripter
 	Created: December 10, 2025
+	Updated: December 23, 2025 - Reorganized into modular folder structure
 --]]
 
 -- Services
@@ -30,16 +31,16 @@ local Enums = require(CombatSystem.Data.Enums)
 local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 local PhysicsHelper = require(CombatSystem.Helpers.PhysicsHelper)
 
-local CharacterManager = require(script.Parent.CharacterManager)
-local CooldownManager = require(script.Parent.CooldownManager)
-local ComboManager = require(script.Parent.ComboManager)
-local AnimationController = require(script.Parent.AnimationController)
+local CharacterManager = require(script.Parent.Parent.Character.CharacterManager)
+local CooldownManager = require(script.Parent.Parent.State.CooldownManager)
+local ComboManager = require(script.Parent.Parent.State.ComboManager)
+local AnimationController = require(script.Parent.Parent.Animation.AnimationController)
 local ActionHandler = require(script.Parent.ActionHandler)
-local InputHandler = require(script.Parent.InputHandler)
-local InputBuffering = require(script.Parent.InputBuffering)
-local StateManager = require(script.Parent.StateManager)
-local MovementController = require(script.Parent.MovementController)
-local VisualEffectsController = require(script.Parent.VisualEffectsController)
+local InputHandler = require(script.Parent.Parent.Input.InputHandler)
+local InputBuffering = require(script.Parent.Parent.Input.InputBuffering)
+local StateManager = require(script.Parent.Parent.State.StateManager)
+local MovementController = require(script.Parent.Parent.Movement.MovementController)
+local VisualEffectsController = require(script.Parent.Parent.Visual.VisualEffectsController)
 
 -- Valid states for each action type
 -- M1, M2, Block can CANCEL Dash/Slide

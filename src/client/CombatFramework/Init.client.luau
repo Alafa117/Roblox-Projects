@@ -22,8 +22,8 @@ local CombatSystem = RS:WaitForChild("CombatCore")
 
 local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 
--- Get CombatController from parent folder (CombatController folder)
-local CombatController = require(script.Parent.CombatController)
+-- Get CombatController from Core folder
+local CombatController = require(script.Parent.Core.CombatController)
 
 -- ========================================
 -- INITIALIZATION

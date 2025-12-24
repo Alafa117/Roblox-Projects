@@ -1,19 +1,21 @@
 --[[
 	Module: CharacterManager
-	Type: Client Character Manager
-	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.CharacterManager
-	Path: src/client/CombatFramework/CharacterManager.luau
+	Type: Client Character Management Module
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.Character.CharacterManager
+	Path: src/client/CombatFramework/Character/CharacterManager.luau
 	
 	Description:
 		Manages the player's character lifecycle on the client.
 		Handles character loading, respawning, death, and reference management.
 		Provides validation and safe access to character components.
+		Implements null-safety patterns for robust character handling.
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore (Logger, ValidationHelper, Enums)
 	
 	Author: Professional Roblox Scripter
 	Created: December 13, 2025
+	Updated: December 23, 2025 - Moved to Character/ subfolder
 --]]
 
 -- Services

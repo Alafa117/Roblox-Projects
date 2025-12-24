@@ -1,13 +1,14 @@
 --[[
 	Module: MovementController
 	Type: Client Movement Module
-	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.MovementController
-	Path: src/client/CombatFramework/MovementController.luau
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.Movement.MovementController
+	Path: src/client/CombatFramework/Movement/MovementController.luau
 	
 	Description:
 		Unified client-side movement controller for Dash and Slide mechanics.
 		Eliminates code duplication by centralizing dynamic movement logic.
 		Handles WASD direction detection, camera rotation, and friction-based movement.
+		Uses modern AssemblyLinearVelocity API for physics-based movement.
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore (Config, ValidationHelper, Logger)
@@ -15,6 +16,7 @@
 	
 	Author: Professional Roblox Scripter
 	Created: December 13, 2025
+	Updated: December 23, 2025 - Moved to Movement/, migrated to AssemblyLinearVelocity
 --]]
 
 -- Services
@@ -48,8 +50,8 @@ type MovementConfig = {
 }
 
 type ActiveMovement = {
-	bodyVelocity: BodyVelocity,
 	humanoid: Humanoid,
+	rootPart: BasePart,
 	originalWalkSpeed: number,
 	running: boolean,
 }
@@ -135,14 +137,9 @@ function MovementController:StartDynamicMovement(movementType: string, config: M
 	local originalWalkSpeed = humanoid.WalkSpeed
 	humanoid.WalkSpeed = 0
 	
-	-- Create velocity
-	local bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
-	bodyVelocity.Parent = rootPart
-	
 	self._activeMovement = {
-		bodyVelocity = bodyVelocity,
 		humanoid = humanoid,
+		rootPart = rootPart,
 		originalWalkSpeed = originalWalkSpeed,
 		running = true
 	}
@@ -163,12 +160,11 @@ function MovementController:StartDynamicMovement(movementType: string, config: M
 			local camLook = workspace.CurrentCamera.CFrame.LookVector
 			rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, math.atan2(camLook.X, camLook.Z) + math.pi, 0)
 			
-			if bodyVelocity.Parent then
-				local look, right = rootPart.CFrame.LookVector, rootPart.CFrame.RightVector
-				local dir = if fixedDirection == "front" then look elseif fixedDirection == "back" then -look elseif fixedDirection == "right" then right else -right
-				local friction = 1 - (elapsed / config.Duration * config.FrictionMultiplier)
-				bodyVelocity.Velocity = dir * config.Speed * friction
-			end
+			-- Calculate direction and apply velocity using AssemblyLinearVelocity (modern API)
+			local look, right = rootPart.CFrame.LookVector, rootPart.CFrame.RightVector
+			local dir = if fixedDirection == "front" then look elseif fixedDirection == "back" then -look elseif fixedDirection == "right" then right else -right
+			local friction = 1 - (elapsed / config.Duration * config.FrictionMultiplier)
+			rootPart.AssemblyLinearVelocity = Vector3.new(dir.X * config.Speed * friction, rootPart.AssemblyLinearVelocity.Y, dir.Z * config.Speed * friction)
 			
 			-- Create trail visualization boxes
 			if Config.Debug.ShowHitboxes and (elapsed - lastTrailTime) >= trailInterval then
@@ -205,8 +201,9 @@ function MovementController:StopMovement()
 		self._movementThread = nil
 	end
 	
-	if movement.bodyVelocity and movement.bodyVelocity.Parent then
-		movement.bodyVelocity:Destroy()
+	-- Reset velocity to zero (modern API)
+	if movement.rootPart and movement.rootPart.Parent then
+		movement.rootPart.AssemblyLinearVelocity = Vector3.new(0, movement.rootPart.AssemblyLinearVelocity.Y, 0)
 	end
 	
 	if movement.humanoid then

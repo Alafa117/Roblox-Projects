@@ -7,7 +7,7 @@
 	Description:
 		Helper module for using the Combat System with NPCs/Test Rigs.
 		Provides simple functions to make NPCs perform combat actions.
-		NPCs don't use PlayerDataManager or state tracking - they just execute actions.
+		NPCs don't use PlayerDataManager or state tracking - they just execute actions directly.
 		
 		This module provides NPC integration with the Combat System.
 		Used primarily by SimpleNPCAI and NPC-based gameplay features.
@@ -18,6 +18,8 @@
 			
 			-- Make NPC attack
 			NPCHelper.PerformLightAttack(rig)
+	
+Reorganized: December 23, 2025 - Moved to NPCs/ folder
 			NPCHelper.PerformStrongAttack(rig)
 			NPCHelper.PerformDash(rig, "Forward")
 			NPCHelper.PerformSlide(rig, "Backward")

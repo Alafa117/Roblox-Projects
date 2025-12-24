@@ -11,10 +11,12 @@
 		
 		Moved from shared/ to server/ for proper encapsulation (uses ServerScriptService).
 	
+Reorganized: December 23, 2025 - Moved to Helpers/ subfolder
+	
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core (Enums, SpatialHelper, ValidationHelper)
 		- ReplicatedStorage.CombatCore.Network (NetworkManager)
-		- ServerScriptService.CombatHandler (PlayerDataManager)
+		- CombatHandler.Core (PlayerDataManager)
 	
 	Performance:
 		- Cached NetworkManager reference to avoid repeated lookups

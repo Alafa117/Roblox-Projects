@@ -7,15 +7,16 @@
 	Description:
 		Handles damage calculation, validation, and application.
 		Processes blocking mechanics and damage reduction.
-		Separated from CombatService for better maintainability.
-		Manages health modification and death detection.
+		Separated from CombatService for better maintainability and single responsibility.
+		Manages health modification, death detection, and respawn logic.
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core (Config, Enums, ValidationHelper)
-		- ServerScriptService.CombatHandler.Core.PlayerDataManager
+		- CombatHandler.Core (PlayerDataManager)
 	
 	Author: Professional Roblox Scripter
 	Created: December 13, 2025
+	Reorganized: December 23, 2025 - Moved to Systems/ subfolder
 --]]
 
 -- Services

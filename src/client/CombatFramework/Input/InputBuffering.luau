@@ -1,19 +1,21 @@
 --[[
 	Module: InputBuffering
-	Type: Client Utility Module
-	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.InputBuffering
-	Path: src/client/CombatFramework/InputBuffering.luau
+	Type: Client Input Buffering System
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.Input.InputBuffering
+	Path: src/client/CombatFramework/Input/InputBuffering.luau
 	
 	Description:
 		Implements input buffering for smoother combat feel.
 		Stores inputs that occur during animation locks and executes them when possible.
 		Prevents input loss during combo chains and ability cooldowns.
+		300ms buffer window provides premium UX for input tolerance.
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core.Logger
 	
 	Author: Professional Roblox Scripter
 	Created: December 9, 2025
+	Updated: December 23, 2025 - Moved to Input/ subfolder
 --]]
 
 -- Services

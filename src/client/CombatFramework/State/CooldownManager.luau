@@ -1,8 +1,8 @@
 --[[
 	Module: CooldownManager
-	Type: Client Utility Module
-	Location: ReplicatedFirst.CombatFramework.CooldownManager
-	Path: src/client/CombatFramework/CooldownManager.luau
+	Type: Client Cooldown Management Module
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.State.CooldownManager
+	Path: src/client/CombatFramework/State/CooldownManager.luau
 	
 	Description:
 		Manages action cooldowns for the combat system.

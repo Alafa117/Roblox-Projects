@@ -1,16 +1,18 @@
 --[[
 	Module: StateManager
 	Type: Client State Management Module
-	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.StateManager
-	Path: src/client/CombatFramework/StateManager.luau
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.State.StateManager
+	Path: src/client/CombatFramework/State/StateManager.luau
 	
 	Description:
 		Manages combat state transitions and automatic state resets.
 		Centralizes state logic to avoid code duplication and ensure consistent behavior.
 		Uses Config values for accurate timing based on combat mechanics.
+		Implements state machine with validation for legal state transitions.
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
+	Updated: December 23, 2025 - Moved to State/ subfolder
 --]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

@@ -7,15 +7,17 @@
 	Description:
 		Processes all combat actions (attacks, movement, blocking).
 		Handles state transitions, combo logic, and action execution.
-		Separated from CombatService for better maintainability.
-		Manages task scheduling and cancellation for actions.
+		Separated from CombatService for better maintainability and single responsibility.
+		Manages task scheduling and cancellation for all timed actions.
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core (Config, Enums, Logger, DebugLogger)
-		- ServerScriptService.CombatHandler.Core.PlayerDataManager
+		- CombatHandler.Core (PlayerDataManager)
+		- CombatHandler.Mechanics (LightAttack, StrongAttack via dynamic loading)
 	
 	Author: Professional Roblox Scripter
 	Created: December 13, 2025
+	Reorganized: December 23, 2025 - Moved to Core/ subfolder
 --]]
 
 -- Services

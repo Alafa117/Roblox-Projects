@@ -11,13 +11,13 @@
 		Provides authoritative validation and synchronization with clients.
 		
 		Refactored: December 13, 2025 - Separated responsibilities into specialized modules
+		Reorganized: December 23, 2025 - Moved to Core/ subfolder for better structure
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger)
 		- ReplicatedStorage.CombatCore.Network.NetworkManager
-		- ServerScriptService.CombatHandler.Core.PlayerDataManager
-		- ServerScriptService.CombatHandler.Core.ActionProcessor
-		- ServerScriptService.CombatHandler.Systems.DamageCalculator
+		- CombatHandler.Core (PlayerDataManager, ActionProcessor)
+		- CombatHandler.Systems (DamageCalculator)
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025

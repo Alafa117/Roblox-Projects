@@ -46,7 +46,31 @@
     "StarterPlayer": {
       "StarterPlayerScripts": {
         "CombatFramework": {
-          "$path": "src/client/CombatFramework"
+          "$className": "Folder",
+          "Init": {
+            "$path": "src/client/CombatFramework/Init.client.luau"
+          },
+          "Core": {
+            "$path": "src/client/CombatFramework/Core"
+          },
+          "Input": {
+            "$path": "src/client/CombatFramework/Input"
+          },
+          "State": {
+            "$path": "src/client/CombatFramework/State"
+          },
+          "Character": {
+            "$path": "src/client/CombatFramework/Character"
+          },
+          "Animation": {
+            "$path": "src/client/CombatFramework/Animation"
+          },
+          "Movement": {
+            "$path": "src/client/CombatFramework/Movement"
+          },
+          "Visual": {
+            "$path": "src/client/CombatFramework/Visual"
+          }
         }
       }
     }

@@ -19,6 +19,8 @@
 		- Coordinates physics operations with state tracking
 		- Provides clean API for ragdoll lifecycle
 	
+Reorganized: December 23, 2025 - Moved to Physics/ subfolder
+	
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core.PhysicsHelper (for physics operations)
 		- ReplicatedStorage.CombatCore.Core.Logger

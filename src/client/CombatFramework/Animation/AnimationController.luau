@@ -1,8 +1,8 @@
 --[[
 	Module: AnimationController
 	Type: Client Animation Controller
-	Location: ReplicatedFirst.CombatFramework.AnimationController
-	Path: src/client/CombatFramework/AnimationController.luau
+	Location: StarterPlayer.StarterPlayerScripts.CombatFramework.Animation.AnimationController
+	Path: src/client/CombatFramework/Animation/AnimationController.luau
 	
 	Description:
 		Client-side wrapper for AnimationManager from shared modules.

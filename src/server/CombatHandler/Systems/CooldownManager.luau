@@ -17,6 +17,8 @@
 	
 	Usage:
 		local CooldownManager = require(CombatHandler.Systems.CooldownManager)
+	
+Reorganized: December 23, 2025 - Moved to Systems/ subfolder
 		
 		-- Check if action is ready
 		if CooldownManager:CanPerformAction(player, "M1") then

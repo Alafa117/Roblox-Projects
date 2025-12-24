@@ -18,6 +18,9 @@
 		- Provides consistent attack behavior across all attack types
 	
 	Phase 4 Refactoring:
+		- Moved from shared/ to server/ (correct server-authoritative architecture)
+	
+Reorganized: December 23, 2025 - Moved to Mechanics/ subfolder
 		- Moved from shared/ to server/ (correct architecture)
 		- Now properly located in server-only code
 	
