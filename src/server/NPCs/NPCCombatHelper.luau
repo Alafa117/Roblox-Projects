@@ -1,19 +1,19 @@
 --[[
 	Module: NPCCombatHelper
-	Type: Server NPC Testing Helper
-	Location: ServerScriptService.Testing.NPCCombatHelper
-	Path: src/server/Testing/NPCCombatHelper.luau
+	Type: Server NPC Helper Module
+	Location: ServerScriptService.NPCs.NPCCombatHelper
+	Path: src/server/NPCs/NPCCombatHelper.luau
 	
 	Description:
 		Helper module for using the Combat System with NPCs/Test Rigs.
 		Provides simple functions to make NPCs perform combat actions.
 		NPCs don't use PlayerDataManager or state tracking - they just execute actions.
 		
-		This module is part of the Testing tools, not the core Combat System.
-		Used primarily by SimpleNPCAI and manual testing scripts.
+		This module provides NPC integration with the Combat System.
+		Used primarily by SimpleNPCAI and NPC-based gameplay features.
 		
 		Usage Example:
-			local NPCHelper = require(ServerScriptService.Testing.NPCCombatHelper)
+			local NPCHelper = require(ServerScriptService.NPCs.NPCCombatHelper)
 			local rig = workspace.Rig
 			
 			-- Make NPC attack
@@ -25,12 +25,13 @@
 			NPCHelper.StopBlock(rig)
 	
 	Dependencies:
-		- ServerScriptService.CombatHandler.ActionProcessor
+		- ServerScriptService.CombatHandler.Core.ActionProcessor
 		- ReplicatedStorage.CombatCore.Core.Enums
 	
 	Author: Professional Roblox Scripter
 	Created: December 13, 2025
 	Updated: December 14, 2025 - Moved to Testing folder
+	Updated: December 23, 2025 - Reorganized to NPCs folder
 --]]
 
 -- Services
@@ -43,7 +44,7 @@ local Enums = require(CombatCore.Data.Enums)
 
 -- ActionProcessor is in CombatHandler (core system)
 local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
-local ActionProcessorModule = require(CombatHandler:WaitForChild("ActionProcessor"))
+local ActionProcessorModule = require(CombatHandler.Core:WaitForChild("ActionProcessor"))
 
 -- NPC Combat Helper
 local NPCCombatHelper = {}

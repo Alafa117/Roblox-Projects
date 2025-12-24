@@ -1,8 +1,8 @@
 --[[
 	Module: ActionProcessor
 	Type: Server Action Handler
-	Location: ServerScriptService.CombatHandler.ActionProcessor
-	Path: src/server/CombatHandler/ActionProcessor.luau
+	Location: ServerScriptService.CombatHandler.Core.ActionProcessor
+	Path: src/server/CombatHandler/Core/ActionProcessor.luau
 	
 	Description:
 		Processes all combat actions (attacks, movement, blocking).
@@ -12,7 +12,7 @@
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core (Config, Enums, Logger, DebugLogger)
-		- ServerScriptService.CombatHandler.PlayerDataManager
+		- ServerScriptService.CombatHandler.Core.PlayerDataManager
 	
 	Author: Professional Roblox Scripter
 	Created: December 13, 2025

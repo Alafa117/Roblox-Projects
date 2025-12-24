@@ -53,7 +53,7 @@ local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
 local AttackHelper = require(CombatHandler.Helpers.AttackHelper)
 
 -- Cached service references
-local CombatService = require(CombatHandler:WaitForChild("CombatService"))
+local CombatService = require(CombatHandler.Core:WaitForChild("CombatService"))
 
 -- Base Attack Module
 local BaseAttack = {}

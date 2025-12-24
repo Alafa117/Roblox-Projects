@@ -1,7 +1,7 @@
 --[[
 	Script: SimpleNPCAI (Stationary Training Dummies)
-	Type: Server Script
-	Location: ServerScriptService.Testing
+	Type: Server NPC AI Script
+	Location: ServerScriptService.NPCs
 	
 	Description:
 		STATIONARY training dummies for Combat System testing.
@@ -51,9 +51,9 @@ local RunService = game:GetService("RunService")
 -- Wait for Combat System
 task.wait(2)
 
--- Get NPCCombatHelper from Testing folder (same location as this script)
-local Testing = ServerScriptService:WaitForChild("Testing")
-local NPCCombatHelper = require(Testing:WaitForChild("NPCCombatHelper"))
+-- Get NPCCombatHelper from NPCs folder (same location as this script)
+local NPCs = ServerScriptService:WaitForChild("NPCs")
+local NPCCombatHelper = require(NPCs:WaitForChild("NPCCombatHelper"))
 
 -- ========================================
 -- CONFIGURATION

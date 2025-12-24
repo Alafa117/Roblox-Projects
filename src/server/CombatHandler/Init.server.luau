@@ -22,8 +22,8 @@ local CombatSystem = RS:WaitForChild("CombatCore")
 
 local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 
--- Get CombatService from parent folder (CombatService folder)
-local CombatService = require(script.Parent.CombatService)
+-- Get CombatService from Core folder
+local CombatService = require(script.Parent.Core.CombatService)
 
 -- ========================================
 -- INITIALIZATION

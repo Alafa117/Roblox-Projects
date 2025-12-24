@@ -1,8 +1,8 @@
 --[[
 	Module: DamageCalculator
 	Type: Server Damage Handler
-	Location: ServerScriptService.CombatHandler.DamageCalculator
-	Path: src/server/CombatHandler/DamageCalculator.luau
+	Location: ServerScriptService.CombatHandler.Systems.DamageCalculator
+	Path: src/server/CombatHandler/Systems/DamageCalculator.luau
 	
 	Description:
 		Handles damage calculation, validation, and application.
@@ -12,7 +12,7 @@
 	
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core (Config, Enums, ValidationHelper)
-		- ServerScriptService.CombatHandler.PlayerDataManager
+		- ServerScriptService.CombatHandler.Core.PlayerDataManager
 	
 	Author: Professional Roblox Scripter
 	Created: December 13, 2025
@@ -28,7 +28,7 @@ local CombatSystem = RS:WaitForChild("CombatCore")
 local Config = require(CombatSystem.Config.Config)
 local Enums = require(CombatSystem.Data.Enums)
 
-local PlayerDataManager = require(script.Parent.PlayerDataManager).GetInstance()
+local PlayerDataManager = require(script.Parent.Parent.Core.PlayerDataManager).GetInstance()
 
 -- Damage Calculator Module
 local DamageCalculator = {}

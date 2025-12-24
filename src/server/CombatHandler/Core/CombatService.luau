@@ -1,8 +1,8 @@
 --[[
 	Module: CombatService
 	Type: Server Main Service
-	Location: ServerScriptService.CombatHandler.CombatService
-	Path: src/server/CombatHandler/CombatService.luau
+	Location: ServerScriptService.CombatHandler.Core.CombatService
+	Path: src/server/CombatHandler/Core/CombatService.luau
 	
 	Description:
 		Main server-side orchestration service for the Combat System.
@@ -15,9 +15,9 @@
 	Dependencies:
 		- ReplicatedStorage.CombatCore.Core (Config, Enums, Types, Logger)
 		- ReplicatedStorage.CombatCore.Network.NetworkManager
-		- ServerScriptService.CombatHandler.PlayerDataManager
-		- ServerScriptService.CombatHandler.ActionProcessor
-		- ServerScriptService.CombatHandler.DamageCalculator
+		- ServerScriptService.CombatHandler.Core.PlayerDataManager
+		- ServerScriptService.CombatHandler.Core.ActionProcessor
+		- ServerScriptService.CombatHandler.Systems.DamageCalculator
 	
 	Author: Professional Roblox Scripter
 	Created: December 11, 2025
@@ -41,16 +41,15 @@ local TypeValidators = require(CombatSystem.Validation.TypeValidators)
 
 -- Server modules
 local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
-local RagdollManager = require(CombatHandler.Physics.RagdollManager).GetInstance()
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager).GetInstance()
 local ActionProcessorModule = require(script.Parent.ActionProcessor)
-local DamageCalculator = require(script.Parent.DamageCalculator)
-local RagdollManager = require(script.Parent.Physics.RagdollManager).GetInstance()
+local DamageCalculator = require(CombatHandler.Systems.DamageCalculator)
+local RagdollManager = require(CombatHandler.Physics.RagdollManager).GetInstance()
 
--- NPCCombatHelper is in Testing folder (testing utilities, not core system)
-local Testing = ServerScriptService:WaitForChild("Testing")
-local NPCCombatHelper = require(Testing:WaitForChild("NPCCombatHelper"))
+-- NPCCombatHelper is in NPCs folder (NPC integration utilities, not core system)
+local NPCs = ServerScriptService:WaitForChild("NPCs")
+local NPCCombatHelper = require(NPCs:WaitForChild("NPCCombatHelper"))
 
 -- Combat Service Class
 local CombatService = {}
@@ -173,7 +172,7 @@ end
 
 function CombatService:_LoadMechanics()
 	-- Phase 4: Attack mechanics now in server, movement mechanics still in shared
-	local serverMechanicsFolder = script.Parent:WaitForChild("Mechanics")
+	local serverMechanicsFolder = script.Parent.Parent:WaitForChild("Mechanics")
 	local sharedMovementFolder = CombatSystem:WaitForChild("Movement")
 	
 	-- Load attack mechanics from server (server-authoritative)

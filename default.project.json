@@ -15,10 +15,31 @@
 
     "ServerScriptService": {
       "CombatHandler": {
-        "$path": "src/server/CombatHandler"
+        "$className": "Folder",
+        "Init": {
+          "$path": "src/server/CombatHandler/Init.server.luau"
+        },
+        "Core": {
+          "$path": "src/server/CombatHandler/Core"
+        },
+        "Systems": {
+          "$path": "src/server/CombatHandler/Systems"
+        },
+        "Mechanics": {
+          "$path": "src/server/CombatHandler/Mechanics"
+        },
+        "Helpers": {
+          "$path": "src/server/CombatHandler/Helpers"
+        },
+        "Physics": {
+          "$path": "src/server/CombatHandler/Physics"
+        }
       },
-      "Testing": {
-        "$path": "src/server/Testing"
+      "NPCs": {
+        "$path": "src/server/NPCs"
+      },
+      "Tests": {
+        "$path": "src/server/Tests"
       }
     },
 

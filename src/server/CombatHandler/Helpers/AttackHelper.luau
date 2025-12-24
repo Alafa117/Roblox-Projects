@@ -37,7 +37,7 @@ local ValidationHelper = require(CombatSystem.Validation.ValidationHelper)
 
 -- Cache PlayerDataManager (optimization)
 local CombatHandler = ServerScriptService:WaitForChild("CombatHandler")
-local PlayerDataManager = require(CombatHandler:WaitForChild("PlayerDataManager"))
+local PlayerDataManager = require(CombatHandler.Core:WaitForChild("PlayerDataManager"))
 local dataManager = PlayerDataManager.GetInstance()
 
 -- Cache NetworkManager (optimization)

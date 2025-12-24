@@ -1,7 +1,7 @@
 --[[
 	Script: UnreliableRemoteEventTest
 	Type: Server Test Script
-	Location: ServerScriptService.Testing.UnreliableRemoteEventTest
+	Location: ServerScriptService.Tests.UnreliableRemoteEventTest
 	
 	Description:
 		Test script to validate UnreliableRemoteEvent functionality.

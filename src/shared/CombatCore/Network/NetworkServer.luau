@@ -43,7 +43,7 @@ local ValidationHelper = require(script.Parent.Parent.Validation.ValidationHelpe
 -- Server-side Imports (only on server)
 local CooldownManager = nil
 if IS_SERVER then
-	CooldownManager = require(ServerScriptService.CombatHandler.CooldownManager).GetInstance()
+	CooldownManager = require(ServerScriptService.CombatHandler.Systems.CooldownManager).GetInstance()
 end
 
 -- Network Server Class

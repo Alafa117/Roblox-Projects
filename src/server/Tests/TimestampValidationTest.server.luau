@@ -1,11 +1,11 @@
 --[[
 	Script: TimestampValidationTest
 	Type: Server Test Script
-	Location: ServerScriptService.Testing.TimestampValidationTest
+	Location: ServerScriptService.Tests.TimestampValidationTest
 	
 	Description:
 		Test script to validate timestamp validation and replay attack prevention.
-		Tests the nonce/timestamp system implemented in TODO #8.
+		Tests the nonce/timestamp system (server-side replay attack prevention).
 	
 	Author: Professional Roblox Scripter
 	Created: December 21, 2025

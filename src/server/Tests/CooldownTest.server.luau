@@ -1,7 +1,7 @@
 --[[
 	Script: CooldownTest
 	Type: Server Test Script
-	Location: ServerScriptService.Testing.CooldownTest
+	Location: ServerScriptService.Tests.CooldownTest
 	
 	Description:
 		Test script to validate server-side cooldown tracking system.
@@ -17,7 +17,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Module Imports
-local CooldownManager = require(ServerScriptService.CombatHandler.CooldownManager).GetInstance()
+local CooldownManager = require(ServerScriptService.CombatHandler.Systems.CooldownManager).GetInstance()
 local CombatCore = ReplicatedStorage:WaitForChild("CombatCore")
 local Logger = require(CombatCore.Logging.Logger).GetInstance()
 

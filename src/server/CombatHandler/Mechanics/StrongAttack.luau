@@ -72,7 +72,7 @@ local _npcCombatHelper = nil
 
 local function GetPlayerDataManager()
 	if not _playerDataManager then
-		local PlayerDataManager = require(CombatHandler:WaitForChild("PlayerDataManager"))
+		local PlayerDataManager = require(CombatHandler.Core:WaitForChild("PlayerDataManager"))
 		_playerDataManager = PlayerDataManager.GetInstance()
 	end
 	return _playerDataManager
@@ -88,8 +88,8 @@ end
 
 local function GetNPCCombatHelper()
 	if not _npcCombatHelper then
-		local Testing = ServerScriptService:WaitForChild("Testing")
-		_npcCombatHelper = require(Testing:WaitForChild("NPCCombatHelper"))
+		local NPCs = ServerScriptService:WaitForChild("NPCs")
+		_npcCombatHelper = require(NPCs:WaitForChild("NPCCombatHelper"))
 	end
 	return _npcCombatHelper
 end

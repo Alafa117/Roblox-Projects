@@ -1,22 +1,22 @@
 --[[
 	Module: CooldownManager
 	Type: Server-Side Cooldown Tracker
-	Location: ServerScriptService.CombatHandler.CooldownManager
-	Path: src/server/CombatHandler/CooldownManager.luau
+	Location: ServerScriptService.CombatHandler.Systems.CooldownManager
+	Path: src/server/CombatHandler/Systems/CooldownManager.luau
 	
 	Description:
 		Server-authoritative cooldown tracking system for combat actions.
 		Prevents cooldown bypass exploits by tracking all cooldowns server-side.
 		Does not trust client timestamps - all validation happens on server.
 		
-		Phase 4 Enhancement (TODO #7):
+		Phase 4 Enhancement (Server-Authoritative Cooldowns):
 		- Server-side cooldown tracking (no client trust)
 		- Automatic cleanup on player disconnect
 		- Per-action cooldown management
 		- Anti-exploit protection against cooldown manipulation
 	
 	Usage:
-		local CooldownManager = require(CombatHandler.CooldownManager)
+		local CooldownManager = require(CombatHandler.Systems.CooldownManager)
 		
 		-- Check if action is ready
 		if CooldownManager:CanPerformAction(player, "M1") then
@@ -32,7 +32,7 @@
 		- ReplicatedStorage.CombatCore.Logging (Logger)
 	
 	Author: Professional Roblox Scripter
-	Created: December 21, 2025 (Phase 4 - TODO #7)
+	Created: December 21, 2025 (Phase 4 - Server-Authoritative Cooldowns)
 --]]
 
 -- Services
