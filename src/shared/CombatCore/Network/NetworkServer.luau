@@ -226,14 +226,21 @@ function NetworkServer:_HandleClientRequest(player: Player, eventType: string, d
 	if CooldownManager then
 		local actionType = self:_GetActionTypeFromRequest(eventType, data)
 		if actionType then
-			if not CooldownManager:CanPerformAction(player, actionType) then
-				local remaining = CooldownManager:GetRemainingCooldown(player, actionType)
-				Logger:Warning("Action on cooldown", {
-					player = player.Name,
-					action = actionType,
-					remaining = string.format("%.2fs", remaining)
-				})
-				return -- Reject action on cooldown
+			-- FIXED: Never validate cooldown for block deactivation (December 26, 2025)
+			-- Block release (IsBlocking=false) must ALWAYS be allowed
+			-- Only validate cooldown for block activation (IsBlocking=true)
+			local isBlockDeactivation = (eventType == Enums.NetworkEvent.RequestBlock and data and data.IsBlocking == false)
+			
+			if not isBlockDeactivation then
+				if not CooldownManager:CanPerformAction(player, actionType) then
+					local remaining = CooldownManager:GetRemainingCooldown(player, actionType)
+					Logger:Warning("Action on cooldown", {
+						player = player.Name,
+						action = actionType,
+						remaining = string.format("%.2fs", remaining)
+					})
+					return -- Reject action on cooldown
+				end
 			end
 		end
 	end

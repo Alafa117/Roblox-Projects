@@ -354,13 +354,10 @@ function CombatController:_StartUpdateLoop()
 		-- Update combo window first (reset if expired)
 		self._comboManager:UpdateComboWindow()
 		
-		-- Process buffered inputs (with updated combo state)
-		if self._inputBuffering:HasBufferedInputs() and self._currentState == Enums.CombatState.Idle then
-			local bufferedInput = self._inputBuffering:GetNextInput()
-			if bufferedInput and bufferedInput.ActionType == Enums.ActionType.M1 then
-				self._actionHandler:HandleLightAttack()
-			end
-		end
+		-- REMOVED: Auto-execution of buffered inputs (December 26, 2025)
+		-- This was causing infinite loop where inputs executed every frame
+		-- ignoring cooldowns, especially after hit 6 finisher
+		-- Input buffering should only happen during combo chains, not as auto-retry
 	end))
 end
 

@@ -118,9 +118,14 @@ function InputHandler:Initialize()
 		end
 	end)
 	
+	-- FIXED: Hold-to-block system (December 25, 2025)
+	-- Now properly sends Begin when F pressed, End when F released
 	self:_BindAction("CombatBlock", Enum.KeyCode.F, function(_, state, obj)
-		self._inputStates[Enums.ActionType.F] = (state == Enum.UserInputState.Begin)
-		self:_TriggerAction(Enums.ActionType.F, state, obj)
+		-- Only trigger on Begin and End states (not Change)
+		if state == Enum.UserInputState.Begin or state == Enum.UserInputState.End then
+			self._inputStates[Enums.ActionType.F] = (state == Enum.UserInputState.Begin)
+			self:_TriggerAction(Enums.ActionType.F, state, obj)
+		end
 	end)
 	
 	-- Mobile touch
@@ -156,10 +161,19 @@ end
 function InputHandler:_TriggerAction(actionType: string, inputState: Enum.UserInputState, inputObject: InputObject?)
 	if not self._enabled or self._blockedInputs[actionType] then return end
 	
-	-- Debounce
-	local now = os.clock()
-	if now - (self._lastInputTime[actionType] or 0) < INPUT_DEBOUNCE_TIME then return end
-	self._lastInputTime[actionType] = now
+	-- FIXED: Remove all debouncing for Block action (December 26, 2025)
+	-- Block Begin/End are discrete state changes that must ALWAYS be processed
+	-- Debouncing can cause Begin or End to be dropped, leaving block stuck
+	-- Cooldown in ActionHandler prevents spam, not debounce here
+	local isBlockAction = actionType == Enums.ActionType.F
+	
+	if not isBlockAction then
+		-- Normal debounce for other actions
+		local now = os.clock()
+		if now - (self._lastInputTime[actionType] or 0) < INPUT_DEBOUNCE_TIME then return end
+		self._lastInputTime[actionType] = now
+	end
+	-- Block action: NO debounce at all, process every Begin and End immediately
 	
 	-- Update state
 	self._inputStates[actionType] = (inputState == Enum.UserInputState.Begin)

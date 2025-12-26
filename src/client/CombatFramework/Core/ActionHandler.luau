@@ -174,12 +174,10 @@ function ActionHandler:HandleLightAttack()
 	-- Update state
 	self._stateManager:HandleLightAttackState()
 	
-	-- Cooldown logic: ComboManager determines if cooldown should apply
-	if self._comboManager:ShouldApplyCooldown(comboCount, wasInWindow) then
-		self._cooldownManager:Start(Enums.ActionType.M1)
-	else
-		self._cooldownManager:Clear(Enums.ActionType.M1)
-	end
+	-- FIXED: Apply cooldown IMMEDIATELY to prevent spam (December 26, 2025)
+	-- Previous task.delay approach allowed multiple clicks before cooldown activated
+	-- Animation duration naturally prevents clicks, cooldown prevents buffer spam
+	self._cooldownManager:Start(Enums.ActionType.M1)
 	
 	-- Play animation locally (prediction)
 	self._animationController:PlayLightAttack(comboCount)
@@ -209,8 +207,13 @@ function ActionHandler:HandleStrongAttack()
 	-- Update state
 	self._stateManager:HandleStrongAttackState()
 	
-	-- Cooldown activates IMMEDIATELY
-	self._cooldownManager:Start(Enums.ActionType.M2)
+	-- FIXED: Apply cooldown AFTER animation completes (December 26, 2025)
+	-- M2 animation duration is Config.StrongAttack.StunDuration (0.8s)
+	-- Cooldown starts AFTER the animation finishes
+	local animationDuration = 0.8 -- Config.StrongAttack.StunDuration
+	task.delay(animationDuration, function()
+		self._cooldownManager:Start(Enums.ActionType.M2)
+	end)
 	
 	-- Reset combo
 	self._comboManager:ResetCombo()
@@ -241,7 +244,13 @@ function ActionHandler:HandleDash(direction: string)
 	
 	-- Update state using StateManager
 	self._stateManager:HandleDashState()
-	self._cooldownManager:Start(Enums.ActionType.Q)
+	
+	-- FIXED: Apply cooldown AFTER dash completes (December 26, 2025)
+	-- Dash duration is 0.45s
+	local dashDuration = 0.45
+	task.delay(dashDuration, function()
+		self._cooldownManager:Start(Enums.ActionType.Q)
+	end)
 	
 	-- Play animation locally
 	self._animationController:PlayDash(direction)
@@ -271,7 +280,13 @@ function ActionHandler:HandleSlide(direction: string)
 	
 	-- Update state using StateManager
 	self._stateManager:HandleSlideState()
-	self._cooldownManager:Start(Enums.ActionType.C)
+	
+	-- FIXED: Apply cooldown AFTER slide completes (December 26, 2025)
+	-- Slide duration is 0.4s
+	local slideDuration = 0.4
+	task.delay(slideDuration, function()
+		self._cooldownManager:Start(Enums.ActionType.C)
+	end)
 	
 	-- Play animation locally
 	self._animationController:PlaySlide()
@@ -300,6 +315,9 @@ function ActionHandler:HandleBlockStart()
 	-- Update state using StateManager
 	self._stateManager:HandleBlockStartState()
 	
+	-- Start cooldown when activating block (December 26, 2025)
+	self._cooldownManager:Start(Enums.ActionType.F)
+	
 	-- Send to server
 	self._networkManager:SendToServer(Enums.NetworkEvent.RequestBlock, {
 		IsBlocking = true,
@@ -308,9 +326,12 @@ end
 
 -- Handle F block end
 function ActionHandler:HandleBlockEnd()
+	-- CRITICAL: Always allow block deactivation (December 26, 2025)
+	-- Block end should NEVER be blocked by cooldown
+	-- Cooldown only applies to RE-ACTIVATING the block, not releasing it
+	
 	-- Update state using StateManager
 	self._stateManager:HandleBlockEndState()
-	self._cooldownManager:Start(Enums.ActionType.F)
 	
 	-- Send to server
 	self._networkManager:SendToServer(Enums.NetworkEvent.RequestBlock, {

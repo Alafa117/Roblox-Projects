@@ -189,17 +189,56 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 	-- Apply longer stun (Phase 2: uses base class)
 	self:_ApplyStunToVictim(victim, Config.StrongAttack.StunDuration)
 	
-	-- Break block if blocked (for both players and NPCs)
+	-- Directional block break validation (December 25, 2025)
 	if hitData.HitResult == Enums.HitResult.Blocked then
-		if typeof(victim) == "Instance" and victim:IsA("Player") then
-			self:_BreakBlock(victim)
-		else
-			-- NPC block break
-			self:_BreakNPCBlock(victim)
+		local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
+		local attacker = attackData.Attacker
+		local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
+		
+		if victimChar and attackerChar then
+			-- Check if attack is from front or back
+			local isFromFront = SpatialHelper.IsInFront(victimChar, attackerChar, 120)
+			
+			if not isFromFront then
+				-- Back attack while blocking: disable block WITHOUT stun
+				if typeof(victim) == "Instance" and victim:IsA("Player") then
+					local PlayerDataManager = require(CombatHandler.Core.PlayerDataManager).GetInstance()
+					PlayerDataManager:SetBlocking(victim, false)
+					Logger:Debug("Block disabled by back attack (M2)", {
+						victim = victim.Name,
+						noStun = true
+					})
+				else
+					-- NPC back attack
+					self:_BreakNPCBlock(victim)
+				end
+				return -- Exit early, no stun, no ragdoll
+			else
+				-- Front attack while blocking: break block with stun
+				if typeof(victim) == "Instance" and victim:IsA("Player") then
+					self:_BreakBlock(victim)
+				else
+					-- NPC block break
+					self:_BreakNPCBlock(victim)
+				end
+				return -- Exit early, stun applied via _BreakBlock, no ragdoll
+			end
 		end
 	end
 	
-	-- Apply ragdoll with integrated knockback physics
+	-- CRITICAL: Only apply ragdoll/knockback if NOT blocking (December 25, 2025)
+	-- When blocking, stun is already applied via block break mechanic above
+	if hitData.HitResult == Enums.HitResult.Blocked or hitData.HitResult == Enums.HitResult.PerfectBlock then
+		return
+	end
+	
+	-- Apply ragdoll with integrated knockback physics (only if NOT blocking)
+	if hitData.HitResult == Enums.HitResult.Blocked or hitData.HitResult == Enums.HitResult.PerfectBlock then
+		-- When blocking, stun is already applied via block break mechanic above
+		-- Do NOT apply ragdoll/knockback
+		return
+	end
+	
 	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
 	if victimChar then
 		-- Calculate knockback direction
@@ -240,6 +279,24 @@ function StrongAttack:_BreakBlock(victim: Player)
 	
 	-- Apply block break stun
 	dataManager:SetStunned(victim, true, Config.Block.BlockBreakStunDuration)
+	
+	-- Add visual outline for block break (red) - December 26, 2025
+	if victim.Character then
+		local highlight = Instance.new("Highlight")
+		highlight.Name = "BlockBreakHighlight"
+		highlight.FillColor = Color3.fromRGB(255, 50, 50) -- Red
+		highlight.OutlineColor = Color3.fromRGB(200, 0, 0)
+		highlight.FillTransparency = 0.6
+		highlight.OutlineTransparency = 0
+		highlight.Parent = victim.Character
+		
+		-- Remove highlight after stun duration
+		task.delay(Config.Block.BlockBreakStunDuration, function()
+			if highlight and highlight.Parent then
+				highlight:Destroy()
+			end
+		end)
+	end
 	
 	-- Notify client for animation
 	netManager:SendToClient(victim, Enums.NetworkEvent.PlayAnimation, {

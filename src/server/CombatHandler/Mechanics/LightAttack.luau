@@ -160,9 +160,65 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 	-- Apply stun (Phase 2: uses base class)
 	self:_ApplyStunToVictim(victim, Config.LightAttack.StunDuration)
 	
-	-- Apply knockback and ragdoll on 6th combo (finisher)
+	-- Apply knockback on ALL hits (small knockback on 1-5, ragdoll on 6th)
 	if comboCount == 6 then
 		local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
+		
+		-- Directional block break validation (December 25, 2025)
+		-- If blocking, check attack direction to determine behavior
+		if victimChar and (hitData.HitResult == Enums.HitResult.Blocked or hitData.HitResult == Enums.HitResult.PerfectBlock) then
+			local attacker = attackData.Attacker
+			local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
+			
+			if attackerChar then
+				-- Check if attack is from front or back
+				local isFromFront = SpatialHelper.IsInFront(victimChar, attackerChar, 120)
+				
+				if not isFromFront then
+					-- Back attack while blocking: disable block WITHOUT stun
+					if typeof(victim) == "Instance" and victim:IsA("Player") then
+						local PlayerDataManager = require(CombatHandler.Core.PlayerDataManager).GetInstance()
+						PlayerDataManager:SetBlocking(victim, false)
+						Logger:Debug("Block disabled by back attack (M1 finisher)", {
+							victim = victim.Name,
+							noStun = true
+						})
+					end
+					return -- Exit early, no stun, no ragdoll
+				else
+					-- Front attack while blocking: apply stun (block break)
+					if typeof(victim) == "Instance" and victim:IsA("Player") then
+						self:_ApplyStunToVictim(victim, Config.Block.BlockBreakStunDuration)
+						
+						-- Add visual outline for block break (red) - December 26, 2025
+						if victim.Character then
+							local highlight = Instance.new("Highlight")
+							highlight.Name = "BlockBreakHighlight"
+							highlight.FillColor = Color3.fromRGB(255, 50, 50) -- Red
+							highlight.OutlineColor = Color3.fromRGB(200, 0, 0)
+							highlight.FillTransparency = 0.6
+							highlight.OutlineTransparency = 0
+							highlight.Parent = victim.Character
+							
+							-- Remove highlight after stun duration
+							task.delay(Config.Block.BlockBreakStunDuration, function()
+								if highlight and highlight.Parent then
+									highlight:Destroy()
+								end
+							end)
+						end
+						
+						Logger:Debug("Block broken by M1 finisher", {
+							victim = victim.Name,
+							stunDuration = Config.Block.BlockBreakStunDuration
+						})
+					end
+					return -- Exit early, stun applied, no ragdoll
+				end
+			end
+		end
+		
+		-- If NOT blocking, apply ragdoll with knockback
 		if victimChar and hitData.HitResult ~= Enums.HitResult.Blocked and hitData.HitResult ~= Enums.HitResult.PerfectBlock then
 			-- Calculate knockback direction
 			local attacker = attackData.Attacker
@@ -189,7 +245,34 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 				end
 			end
 		end
+	else
+		-- Small knockback on hits 1-5 (only if NOT blocking)
+		if hitData.HitResult ~= Enums.HitResult.Blocked and hitData.HitResult ~= Enums.HitResult.PerfectBlock then
+			local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
+			if victimChar then
+				local attacker = attackData.Attacker
+				local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
+				
+				if attackerChar then
+					local SpatialHelper = require(CombatSystem.Helpers.SpatialHelper)
+					local direction = SpatialHelper.GetDirectionTo(attackerChar, victimChar)
+					
+					if direction then
+						-- Small knockback (8 studs base force as configured in Config)
+						local knockbackMultiplier = 1 + (comboCount - 1) * 0.15  -- +15% per combo
+						self:_ApplyKnockbackToVictim(attackData, victim, knockbackMultiplier, 0)
+						
+						Logger:Debug("M1 knockback applied", {
+							victim = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victimChar.Name,
+							combo = comboCount,
+							knockback = Config.LightAttack.Knockback * knockbackMultiplier
+						})
+					end
+				end
+			end
+		end
 	end
 end
 
 return LightAttack
+

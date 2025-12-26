@@ -28,7 +28,7 @@ local CombatSystem = RS:WaitForChild("CombatCore")
 local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 
 -- Constants
-local BUFFER_WINDOW = 0.3 -- Seconds to keep buffered input
+local BUFFER_WINDOW = 0.15 -- Reduced from 0.3s to 0.15s to prevent extra M1s (December 26, 2025)
 local MAX_BUFFER_SIZE = 3 -- Maximum buffered inputs
 
 -- Input Buffering Class
@@ -72,8 +72,8 @@ function InputBuffering:AddInput(actionType: string, data: {[string]: any}?)
 	local now = os.clock()
 	for i = #self._buffer, 1, -1 do
 		local buffered = self._buffer[i]
-		if buffered.ActionType == actionType and (now - buffered.Timestamp) < 0.2 then
-			-- Same action buffered within 200ms, ignore duplicate
+		if buffered.ActionType == actionType and (now - buffered.Timestamp) < 0.1 then
+			-- Same action buffered within 100ms, ignore duplicate (December 26, 2025)
 			return
 		end
 	end

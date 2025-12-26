@@ -94,10 +94,19 @@ function ComboManager:UpdateCombo(): (number, boolean)
 		self._comboCount = 1
 	end
 	
+	-- Store current combo count before potential reset
+	local currentComboCount = self._comboCount
+	
+	-- FIXED: Reset combo to 0 after finisher (December 26, 2025)
+	-- This ensures next M1 starts from hit 1 instead of staying at 6
+	if self._comboCount >= Config.LightAttack.MaxComboCount then
+		self._comboCount = 0
+	end
+	
 	-- Update timestamp
 	self._lastAttackTime = now
 	
-	return self._comboCount, wasInWindow
+	return currentComboCount, wasInWindow
 end
 
 -- Reset combo to 0

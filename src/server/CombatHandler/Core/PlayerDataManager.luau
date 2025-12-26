@@ -324,6 +324,18 @@ function PlayerDataManager:SetStunned(player: Player, stunned: boolean, duration
 		data.StunEndTime = os.clock() + duration
 		self:SetPlayerState(player, Enums.CombatState.Stunned)
 		
+		-- CRITICAL FIX: Disable movement completely during stun (December 24, 2025)
+		if data.Humanoid then
+			data.Humanoid.WalkSpeed = 0
+			data.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+			data.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+			if data.Humanoid.UseJumpPower then
+				data.Humanoid.JumpPower = 0
+			else
+				data.Humanoid.JumpHeight = 0
+			end
+		end
+		
 		-- Schedule automatic stun removal
 		data.StunTimer = task.delay(duration, function()
 			-- Only clear if player still exists and is still stunned
@@ -332,12 +344,50 @@ function PlayerDataManager:SetStunned(player: Player, stunned: boolean, duration
 				if currentData and currentData.IsStunned then
 					-- Clear timer reference BEFORE calling SetStunned to avoid recursive cancel
 					currentData.StunTimer = nil
+					
+					-- Restore movement before clearing stun
+					if currentData.Humanoid then
+						local StarterPlayer = game:GetService("StarterPlayer")
+						-- FIXED: Check if blocking before restoring speed (December 26, 2025)
+						if currentData.IsBlocking then
+							currentData.Humanoid.WalkSpeed = 8 -- Maintain blocking speed
+						else
+							currentData.Humanoid.WalkSpeed = StarterPlayer.CharacterWalkSpeed or 16
+						end
+						if currentData.Humanoid.UseJumpPower then
+							currentData.Humanoid.JumpPower = StarterPlayer.CharacterJumpPower or 50
+						else
+							currentData.Humanoid.JumpHeight = StarterPlayer.CharacterJumpHeight or 7.2
+						end
+						currentData.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+						currentData.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+					end
+					
 					self:SetStunned(player, false)
 				end
 			end
 		end)
 	else
 		data.StunEndTime = nil
+		
+		-- Restore movement when manually clearing stun
+		if data.Humanoid then
+			local StarterPlayer = game:GetService("StarterPlayer")
+			-- FIXED: Check if blocking before restoring speed (December 26, 2025)
+			if data.IsBlocking then
+				data.Humanoid.WalkSpeed = 8 -- Maintain blocking speed
+			else
+				data.Humanoid.WalkSpeed = StarterPlayer.CharacterWalkSpeed or 16
+			end
+			if data.Humanoid.UseJumpPower then
+				data.Humanoid.JumpPower = StarterPlayer.CharacterJumpPower or 50
+			else
+				data.Humanoid.JumpHeight = StarterPlayer.CharacterJumpHeight or 7.2
+			end
+			data.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+			data.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+		end
+		
 		if data.CurrentState == Enums.CombatState.Stunned then
 			self:SetPlayerState(player, Enums.CombatState.Idle)
 		end
@@ -376,8 +426,34 @@ function PlayerDataManager:SetBlocking(player: Player, blocking: boolean)
 	if blocking then
 		data.BlockStartTime = os.clock()
 		self:SetPlayerState(player, Enums.CombatState.Blocking)
+		
+		-- Reduce movement speed while blocking (December 26, 2025)
+		if data.Character and data.Humanoid then
+			data.Humanoid.WalkSpeed = 8 -- Reduced from default 16
+			
+			-- Add visual outline for blocking (blue)
+			local highlight = Instance.new("Highlight")
+			highlight.Name = "BlockHighlight"
+			highlight.FillColor = Color3.fromRGB(0, 150, 255) -- Blue
+			highlight.OutlineColor = Color3.fromRGB(0, 100, 200)
+			highlight.FillTransparency = 0.7
+			highlight.OutlineTransparency = 0
+			highlight.Parent = data.Character
+		end
 	else
 		data.BlockStartTime = nil
+		
+		-- Restore movement speed (December 26, 2025)
+		if data.Character and data.Humanoid then
+			data.Humanoid.WalkSpeed = 16 -- Default speed
+			
+			-- Remove blocking outline
+			local highlight = data.Character:FindFirstChild("BlockHighlight")
+			if highlight then
+				highlight:Destroy()
+			end
+		end
+		
 		if data.CurrentState == Enums.CombatState.Blocking then
 			self:SetPlayerState(player, Enums.CombatState.Idle)
 		end

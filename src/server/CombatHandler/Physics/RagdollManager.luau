@@ -107,13 +107,22 @@ function RagdollManager:ApplyRagdoll(character: Model, duration: number, knockba
 		self:RemoveRagdoll(character)
 	end
 	
-	-- Set character to ragdoll state
-	humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-	humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
-	humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-	
-	-- Get HumanoidRootPart for initial physics impulse
+	-- Get HumanoidRootPart FIRST (needed for network ownership)
 	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	
+	-- Set server network ownership for consistent physics
+	if rootPart and rootPart:IsA("BasePart") then
+		rootPart:SetNetworkOwner(nil)
+	end
+	
+	-- CRITICAL: Disable humanoid states BEFORE breaking joints
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+	
+	-- Use PlatformStand to disable player control (Roblox best practice)
+	humanoid.PlatformStand = true
 	
 	-- Initialize ragdoll data
 	local ragdollData: RagdollData = {
@@ -144,29 +153,7 @@ function RagdollManager:ApplyRagdoll(character: Model, duration: number, knockba
 		end
 	end
 	
-	-- Apply initial physics to make character fall (AFTER cleaning up body parts)
-	if rootPart and rootPart:IsA("BasePart") then
-		-- Set network ownership to server for consistent physics
-		rootPart:SetNetworkOwner(nil)
-		
-		-- Apply knockback velocity if provided, otherwise just fall
-		if knockbackDirection and knockbackForce then
-			-- Combine knockback with downward gravity for natural ragdoll fall
-			local ragdollVelocity = knockbackDirection.Unit * knockbackForce + Vector3.new(0, -10, 0)
-			rootPart.AssemblyLinearVelocity = ragdollVelocity
-			
-			Logger:Debug("Ragdoll with knockback", {
-				character = character.Name,
-				force = knockbackForce,
-				direction = tostring(knockbackDirection)
-			})
-		else
-			-- Just apply downward velocity for natural collapse
-			rootPart.AssemblyLinearVelocity = Vector3.new(0, -20, 0)
-		end
-	end
-	
-	-- Break all Motor6D joints and replace with BallSocketConstraints
+	-- Break all Motor6D joints and replace with BallSocketConstraints (BEFORE Physics state) (BEFORE Physics state)
 	for _, descendant in ipairs(character:GetDescendants()) do
 		if descendant:IsA("Motor6D") then
 			local part0 = descendant.Part0
@@ -218,6 +205,27 @@ function RagdollManager:ApplyRagdoll(character: Model, duration: number, knockba
 		end
 	end
 	
+	-- NOW change to Physics state (after joints are broken and constraints created)
+	humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+	
+	-- Apply physics impulse AFTER entering Physics state
+	if rootPart and rootPart:IsA("BasePart") then
+		if knockbackDirection and knockbackForce then
+			-- Combine knockback with downward gravity for natural ragdoll fall
+			local ragdollVelocity = knockbackDirection.Unit * knockbackForce + Vector3.new(0, -10, 0)
+			rootPart.AssemblyLinearVelocity = ragdollVelocity
+			
+			Logger:Debug("Ragdoll with knockback", {
+				character = character.Name,
+				force = knockbackForce,
+				direction = tostring(knockbackDirection)
+			})
+		else
+			-- Just apply downward velocity for natural collapse
+			rootPart.AssemblyLinearVelocity = Vector3.new(0, -20, 0)
+		end
+	end
+	
 	-- Schedule automatic ragdoll removal
 	local thread = task.delay(duration, function()
 		if character and character.Parent and self._activeRagdolls[character] then
@@ -248,8 +256,16 @@ function RagdollManager:RemoveRagdoll(character: Model)
 	-- Restore humanoid state
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
+		-- Restore PlatformStand first (re-enable player control)
+		humanoid.PlatformStand = false
+		
+		-- Re-enable humanoid states
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+		
+		-- Change to GettingUp state (character stands up)
 		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 	end
 	

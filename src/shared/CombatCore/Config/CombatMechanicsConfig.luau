@@ -22,7 +22,7 @@ local CombatMechanicsConfig = {}
 
 CombatMechanicsConfig.LightAttack = {
 	Damage = 8, -- Balanced light attack damage
-	Cooldown = 0.6, -- Slightly longer to prevent M2 overlap
+	Cooldown = 1.0, -- FIXED: Increased to match animation duration, prevents spam (December 26, 2025)
 	FinisherCooldown = 3.0, -- Reduced finisher cooldown
 	ComboWindow = 1.5, -- Tighter combo timing
 	MaxComboCount = 6, -- Maximum combo hits
@@ -56,7 +56,7 @@ CombatMechanicsConfig.StrongAttack = {
 CombatMechanicsConfig.Block = {
 	DamageReduction = 0.65, -- 65% damage reduction (balanced)
 	Cooldown = 0.5, -- Short cooldown
-	BlockBreakStunDuration = 1.8, -- Punish for block break
+	BlockBreakStunDuration = 1.0, -- Reduced to match action timing (December 26, 2025)
 	PerfectBlockWindow = 0.5, -- 500ms window for human reaction time
 	PerfectBlockReduction = 0.98, -- 98% damage reduction on perfect block
 }
