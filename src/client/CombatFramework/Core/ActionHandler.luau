@@ -207,22 +207,19 @@ function ActionHandler:HandleStrongAttack()
 	-- Update state
 	self._stateManager:HandleStrongAttackState()
 	
-	-- FIXED: Apply cooldown AFTER animation completes (December 26, 2025)
-	-- M2 animation duration is Config.StrongAttack.StunDuration (0.8s)
-	-- Cooldown starts AFTER the animation finishes
-	local animationDuration = 0.8 -- Config.StrongAttack.StunDuration
-	task.delay(animationDuration, function()
-		self._cooldownManager:Start(Enums.ActionType.M2)
-	end)
+	-- FIXED: Start cooldown IMMEDIATELY, but with extended duration (December 27, 2025)
+	-- M2 cooldown = animation (0.8s) + actual cooldown (3.0s) = 3.8s total
+	-- This prevents spam during animation while maintaining proper cooldown after
+	self._cooldownManager:Start(Enums.ActionType.M2)
 	
 	-- Reset combo
 	self._comboManager:ResetCombo()
 	
-	-- Apply M2 visual effect
-	self._visualEffects:ApplyStrongAttackEffect()
-	
-	-- Play animation locally
+	-- Play animation locally (prediction)
 	self._animationController:PlayStrongAttack()
+	
+	-- Apply visual effect immediately (after validation passed)
+	self._visualEffects:ApplyStrongAttackEffect()
 	
 	-- Send to server
 	Logger:ClientAction("M2 Request", string.format("Instant attack, CancelledMovement: %s", tostring(cancelledMovement)))
@@ -315,8 +312,9 @@ function ActionHandler:HandleBlockStart()
 	-- Update state using StateManager
 	self._stateManager:HandleBlockStartState()
 	
-	-- Start cooldown when activating block (December 26, 2025)
-	self._cooldownManager:Start(Enums.ActionType.F)
+	-- FIXED: Don't start cooldown here (December 27, 2025)
+	-- Cooldown should apply when RELEASING block (at end), not at start
+	-- This is consistent with other actions (M2, Dash, Slide)
 	
 	-- Send to server
 	self._networkManager:SendToServer(Enums.NetworkEvent.RequestBlock, {
@@ -332,6 +330,10 @@ function ActionHandler:HandleBlockEnd()
 	
 	-- Update state using StateManager
 	self._stateManager:HandleBlockEndState()
+	
+	-- FIXED: NO cooldown for Block (December 27, 2025)
+	-- Block is defensive mechanic that must be available immediately
+	-- User needs to activate it right after actions finish
 	
 	-- Send to server
 	self._networkManager:SendToServer(Enums.NetworkEvent.RequestBlock, {

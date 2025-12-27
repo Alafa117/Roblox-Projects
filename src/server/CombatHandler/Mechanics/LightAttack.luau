@@ -157,8 +157,11 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 		return
 	end
 	
-	-- Apply stun (Phase 2: uses base class)
-	self:_ApplyStunToVictim(victim, Config.LightAttack.StunDuration)
+	-- FIXED: Apply stun only for hits 1-5, NOT for hit 6 (December 27, 2025)
+	-- Hit 6 needs knockback+ragdoll to work, stun would freeze the victim
+	if comboCount < 6 then
+		self:_ApplyStunToVictim(victim, Config.LightAttack.StunDuration)
+	end
 	
 	-- Apply knockback on ALL hits (small knockback on 1-5, ragdoll on 6th)
 	if comboCount == 6 then
@@ -175,16 +178,17 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 				local isFromFront = SpatialHelper.IsInFront(victimChar, attackerChar, 120)
 				
 				if not isFromFront then
-					-- Back attack while blocking: disable block WITHOUT stun
+					-- FIXED: Back attack while blocking (December 27, 2025)
+					-- Disable block and continue to apply knockback+ragdoll below
 					if typeof(victim) == "Instance" and victim:IsA("Player") then
 						local PlayerDataManager = require(CombatHandler.Core.PlayerDataManager).GetInstance()
 						PlayerDataManager:SetBlocking(victim, false)
-						Logger:Debug("Block disabled by back attack (M1 finisher)", {
+						Logger:Debug("Block disabled by back attack (M1 finisher) - applying knockback+ragdoll", {
 							victim = victim.Name,
 							noStun = true
 						})
 					end
-					return -- Exit early, no stun, no ragdoll
+					-- Don't return - continue to knockback+ragdoll below
 				else
 					-- Front attack while blocking: apply stun (block break)
 					if typeof(victim) == "Instance" and victim:IsA("Player") then
@@ -218,8 +222,10 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 			end
 		end
 		
-		-- If NOT blocking, apply ragdoll with knockback
-		if victimChar and hitData.HitResult ~= Enums.HitResult.Blocked and hitData.HitResult ~= Enums.HitResult.PerfectBlock then
+		-- Apply ragdoll with knockback if:
+		-- 1) NOT blocking at all, OR
+		-- 2) Blocking BUT attacked from back (block was disabled above)
+		if victimChar and hitData.HitResult ~= Enums.HitResult.PerfectBlock then
 			-- Calculate knockback direction
 			local attacker = attackData.Attacker
 			local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker

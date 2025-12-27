@@ -431,6 +431,13 @@ function PlayerDataManager:SetBlocking(player: Player, blocking: boolean)
 		if data.Character and data.Humanoid then
 			data.Humanoid.WalkSpeed = 8 -- Reduced from default 16
 			
+			-- FIXED: Remove existing highlight before creating new one (December 27, 2025)
+			-- Prevents multiple highlights when spamming block
+			local existingHighlight = data.Character:FindFirstChild("BlockHighlight")
+			if existingHighlight then
+				existingHighlight:Destroy()
+			end
+			
 			-- Add visual outline for blocking (blue)
 			local highlight = Instance.new("Highlight")
 			highlight.Name = "BlockHighlight"

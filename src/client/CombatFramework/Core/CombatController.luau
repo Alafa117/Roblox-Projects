@@ -76,8 +76,12 @@ local VALID_ACTION_STATES = {
 	[Enums.ActionType.F] = {
 		[Enums.CombatState.Idle] = true,
 		[Enums.CombatState.Blocking] = true,  -- Can hold/re-block
-		[Enums.CombatState.Dashing] = true,   -- Can cancel Dash
-		[Enums.CombatState.Sliding] = true,   -- Can cancel Slide
+		-- FIXED: Block only works in Idle state (December 27, 2025)
+		-- Must wait for actions to finish before blocking
+		-- LightAttacking NOT allowed
+		-- StrongAttacking NOT allowed
+		-- Dashing NOT allowed
+		-- Sliding NOT allowed
 		-- Stunned NOT allowed
 	},
 }

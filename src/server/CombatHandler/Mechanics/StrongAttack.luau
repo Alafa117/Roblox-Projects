@@ -186,8 +186,9 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 		knockbackMultiplier = 0.1
 	end
 	
-	-- Apply longer stun (Phase 2: uses base class)
-	self:_ApplyStunToVictim(victim, Config.StrongAttack.StunDuration)
+	-- FIXED: Removed stun application (December 27, 2025)
+	-- Stun prevents knockback from working properly
+	-- Stun only applied when breaking block from front (see below)
 	
 	-- Directional block break validation (December 25, 2025)
 	if hitData.HitResult == Enums.HitResult.Blocked then
@@ -200,11 +201,12 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 			local isFromFront = SpatialHelper.IsInFront(victimChar, attackerChar, 120)
 			
 			if not isFromFront then
-				-- Back attack while blocking: disable block WITHOUT stun
+				-- FIXED: Back attack while blocking (December 27, 2025)
+				-- Disable block and continue to apply knockback+ragdoll below
 				if typeof(victim) == "Instance" and victim:IsA("Player") then
 					local PlayerDataManager = require(CombatHandler.Core.PlayerDataManager).GetInstance()
 					PlayerDataManager:SetBlocking(victim, false)
-					Logger:Debug("Block disabled by back attack (M2)", {
+					Logger:Debug("Block disabled by back attack (M2) - applying knockback+ragdoll", {
 						victim = victim.Name,
 						noStun = true
 					})
@@ -212,7 +214,7 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 					-- NPC back attack
 					self:_BreakNPCBlock(victim)
 				end
-				return -- Exit early, no stun, no ragdoll
+				-- Don't return - continue to knockback+ragdoll below
 			else
 				-- Front attack while blocking: break block with stun
 				if typeof(victim) == "Instance" and victim:IsA("Player") then
@@ -226,16 +228,11 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 		end
 	end
 	
-	-- CRITICAL: Only apply ragdoll/knockback if NOT blocking (December 25, 2025)
-	-- When blocking, stun is already applied via block break mechanic above
-	if hitData.HitResult == Enums.HitResult.Blocked or hitData.HitResult == Enums.HitResult.PerfectBlock then
-		return
-	end
-	
-	-- Apply ragdoll with integrated knockback physics (only if NOT blocking)
-	if hitData.HitResult == Enums.HitResult.Blocked or hitData.HitResult == Enums.HitResult.PerfectBlock then
-		-- When blocking, stun is already applied via block break mechanic above
-		-- Do NOT apply ragdoll/knockback
+	-- FIXED: Apply knockback and ragdoll if (December 27, 2025):
+	-- 1) NOT blocking at all, OR
+	-- 2) Blocking BUT attacked from back (block disabled above, HitResult changes from Blocked)
+	-- Only PerfectBlock completely negates knockback
+	if hitData.HitResult == Enums.HitResult.PerfectBlock then
 		return
 	end
 	

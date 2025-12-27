@@ -191,8 +191,10 @@ end
 
 -- State configuration lookup
 local STATE_CONFIG = {
-	-- M1 state resets quickly (0.4s) to allow M2, but cooldown prevents another M1 combo
-	[Enums.ActionType.M1] = {state = Enums.CombatState.LightAttacking, resetTime = function() return 0.4 end},
+	-- FIXED: M1 state resets after cooldown duration (December 27, 2025)
+	-- Previously reset at 0.4s but cooldown was 1.0s, causing state/cooldown desync
+	-- This prevented M2 from executing during M1 animation
+	[Enums.ActionType.M1] = {state = Enums.CombatState.LightAttacking, resetTime = function() return Config.LightAttack.Cooldown end},
 	-- M2 locks for full stun duration + buffer
 	[Enums.ActionType.M2] = {state = Enums.CombatState.StrongAttacking, resetTime = function() return Config.StrongAttack.StunDuration + 0.3 end},
 	[Enums.ActionType.Q] = {state = Enums.CombatState.Dashing, resetTime = function() return Config.Dash.Duration + 0.1 end},

@@ -79,8 +79,10 @@ function VisualEffectsController:ApplyStrongAttackEffect()
 	-- Store reference
 	self._activeEffects["M2Charge"] = highlight
 	
-	-- Auto-remove after M2 duration
-	local thread = task.delay(Config.StrongAttack.StunDuration + 0.3, function()
+	-- FIXED: Match hitbox duration exactly (December 27, 2025)
+	-- Hitbox duration is 0.5s (Debug.HitboxDuration), not StunDuration (0.8s)
+	-- Outline should disappear when hitbox disappears
+	local thread = task.delay(Config.Debug.HitboxDuration, function()
 		self:RemoveEffect("M2Charge")
 	end)
 	table.insert(self._activeThreads, thread)
