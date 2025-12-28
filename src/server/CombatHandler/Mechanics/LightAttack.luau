@@ -192,6 +192,16 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 				else
 					-- Front attack while blocking: apply stun (block break)
 					if typeof(victim) == "Instance" and victim:IsA("Player") then
+						local PlayerDataManager = require(CombatHandler.Core.PlayerDataManager).GetInstance()
+						
+						-- FIXED: Set block break cooldown to prevent spam-blocking (December 28, 2025)
+						-- Bug 3: Spamming Block during hit evades block break
+						-- Player cannot reactivate block for BlockBreakStunDuration
+						local victimData = PlayerDataManager:GetPlayerData(victim)
+						if victimData then
+							victimData.BlockBreakCooldown = os.clock() + Config.Block.BlockBreakStunDuration
+						end
+						
 						self:_ApplyStunToVictim(victim, Config.Block.BlockBreakStunDuration)
 						
 						-- Add visual outline for block break (red) - December 26, 2025

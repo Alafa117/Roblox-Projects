@@ -52,6 +52,8 @@ local VALID_ACTION_STATES = {
 		[Enums.CombatState.LightAttacking] = true, -- M1 combo chains only
 		[Enums.CombatState.Dashing] = true,   -- Can cancel Dash
 		[Enums.CombatState.Sliding] = true,   -- Can cancel Slide
+		-- FIXED: Blocking NOT allowed (December 28, 2025)
+		-- Must release block before attacking
 		-- StrongAttacking NOT allowed (M2 blocks M1)
 		-- Stunned NOT allowed (must expire to Idle first)
 	},
@@ -59,17 +61,23 @@ local VALID_ACTION_STATES = {
 		[Enums.CombatState.Idle] = true,
 		[Enums.CombatState.Dashing] = true,   -- Can cancel Dash
 		[Enums.CombatState.Sliding] = true,   -- Can cancel Slide
+		-- FIXED: Blocking NOT allowed (December 28, 2025)
+		-- Must release block before attacking
 		-- LightAttacking NOT allowed (M1 blocks M2)
 		-- StrongAttacking NOT allowed (M2 blocks M2)
 		-- Stunned NOT allowed (must expire to Idle first)
 	},
 	[Enums.ActionType.Q] = {
 		[Enums.CombatState.Idle] = true,
+		-- FIXED: Blocking NOT allowed (December 28, 2025)
+		-- Cannot dash while blocking
 		-- Cannot cancel any action
 		-- Stunned NOT allowed
 	},
 	[Enums.ActionType.C] = {
 		[Enums.CombatState.Idle] = true,
+		-- FIXED: Blocking NOT allowed (December 28, 2025)
+		-- Cannot slide while blocking
 		-- Cannot cancel any action
 		-- Stunned NOT allowed
 	},
@@ -241,6 +249,11 @@ function CombatController:_InitializeNetworkManager()
 	self._networkManager:RegisterCallback(Enums.NetworkEvent.ApplyKnockback, function(data)
 		self:_OnApplyKnockback(data)
 	end)
+	-- FIXED: Listen for server-confirmed animations (December 28, 2025)
+	-- Apply M2 outline only when server confirms execution
+	self._networkManager:RegisterCallback(Enums.NetworkEvent.PlayAnimation, function(data)
+		self:_OnPlayAnimation(data)
+	end)
 end
 
 function CombatController:_SetupInputCallbacks()
@@ -314,6 +327,20 @@ function CombatController:_OnApplyKnockback(knockbackData: {[string]: any})
 	local character = self._characterManager:GetCharacter()
 	if character then
 		PhysicsHelper.ApplyKnockback(character, knockbackData.Direction, knockbackData.Force)
+	end
+end
+
+-- FIXED: Handle server-confirmed animations (December 28, 2025)
+-- Apply visual effects only when server confirms action execution
+function CombatController:_OnPlayAnimation(animData: {[string]: any})
+	-- Only apply outline for our own StrongAttack
+	local player = game.Players.LocalPlayer
+	if animData.Player == player and animData.AnimationType == "StrongAttack" then
+		-- Server confirmed M2 execution - apply outline
+		self._visualEffects:ApplyStrongAttackEffect()
+		Logger:Debug("M2 outline applied (server confirmed)", {
+			player = player.Name
+		})
 	end
 end
 

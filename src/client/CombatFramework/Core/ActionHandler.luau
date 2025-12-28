@@ -218,8 +218,9 @@ function ActionHandler:HandleStrongAttack()
 	-- Play animation locally (prediction)
 	self._animationController:PlayStrongAttack()
 	
-	-- Apply visual effect immediately (after validation passed)
-	self._visualEffects:ApplyStrongAttackEffect()
+	-- FIXED: Don't apply outline here (December 28, 2025)
+	-- Outline now applied only when server confirms execution via PlayAnimation event
+	-- This prevents confusing outline when M2 is rejected (Stunned/Blocking)
 	
 	-- Send to server
 	Logger:ClientAction("M2 Request", string.format("Instant attack, CancelledMovement: %s", tostring(cancelledMovement)))

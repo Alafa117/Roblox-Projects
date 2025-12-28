@@ -32,6 +32,7 @@ local Enums = require(CombatSystem.Data.Enums)
 local Logger = require(CombatSystem.Logging.Logger).GetInstance()
 
 local PlayerDataManager = require(script.Parent.PlayerDataManager).GetInstance()
+local CooldownManager = require(script.Parent.Parent.Systems.CooldownManager).GetInstance()
 
 -- Action Processor Module
 local ActionProcessor = {}
@@ -120,6 +121,26 @@ function ActionProcessor:ProcessLightAttack(player: Player, data: {[string]: any
 	
 	-- Only use PlayerDataManager for actual Players
 	if isPlayer then
+		-- FIXED: Reject M1 if stunned (December 28, 2025)
+		-- Bug 2: Players can attack during stun
+		if PlayerDataManager:IsStunned(player) then
+			Logger:Debug("LightAttack rejected - player is stunned", {
+				player = player.Name,
+				reason = "Cannot attack while stunned"
+			})
+			return {Success = false, ErrorCode = "STUNNED", ErrorMessage = "Cannot attack while stunned"}
+		end
+		
+		-- FIXED: Reject M1 if blocking (December 28, 2025)
+		-- Prevents desync bug where server IsBlocking=true but client thinks it's off
+		if PlayerDataManager:IsBlocking(player) then
+			Logger:Debug("LightAttack rejected - player is blocking", {
+				player = player.Name,
+				reason = "Cannot attack while blocking"
+			})
+			return {Success = false, ErrorCode = "BLOCKING", ErrorMessage = "Cannot attack while blocking"}
+		end
+		
 		-- Update player state
 		PlayerDataManager:SetPlayerState(player, Enums.CombatState.LightAttacking)
 		PlayerDataManager:SetCooldown(player, Enums.ActionType.M1, os.clock())
@@ -181,6 +202,26 @@ function ActionProcessor:ProcessStrongAttack(player: Player, data: {[string]: an
 	
 	Logger:ServerRequest(entityName, "StrongAttack", "Instant")
 	
+	-- FIXED: Reject M2 if stunned (December 28, 2025)
+	-- Bug 2: Players can attack during stun
+	if isPlayer and PlayerDataManager:IsStunned(player) then
+		Logger:Debug("StrongAttack rejected - player is stunned", {
+			player = player.Name,
+			reason = "Cannot attack while stunned"
+		})
+		return {Success = false, ErrorCode = "STUNNED", ErrorMessage = "Cannot attack while stunned"}
+	end
+	
+	-- FIXED: Reject M2 if blocking (December 28, 2025)
+	-- Prevents desync bug where server IsBlocking=true but client thinks it's off
+	if isPlayer and PlayerDataManager:IsBlocking(player) then
+		Logger:Debug("StrongAttack rejected - player is blocking", {
+			player = player.Name,
+			reason = "Cannot attack while blocking"
+		})
+		return {Success = false, ErrorCode = "BLOCKING", ErrorMessage = "Cannot attack while blocking"}
+	end
+	
 	-- Check if attack cancelled movement
 	local cancelledMovement = data.CancelledMovement or false
 	if cancelledMovement then
@@ -220,6 +261,26 @@ function ActionProcessor:ProcessDash(player: Player, data: {[string]: any}): {[s
 	
 	-- Only use PlayerDataManager for actual Players
 	if isPlayer then
+		-- FIXED: Reject Dash if stunned (December 28, 2025)
+		-- Bug 2: Players can dash during stun
+		if PlayerDataManager:IsStunned(player) then
+			Logger:Debug("Dash rejected - player is stunned", {
+				player = player.Name,
+				reason = "Cannot dash while stunned"
+			})
+			return {Success = false, ErrorCode = "STUNNED", ErrorMessage = "Cannot dash while stunned"}
+		end
+		
+		-- FIXED: Reject Dash if blocking (December 28, 2025)
+		-- Prevents desync bug where server IsBlocking=true but client thinks it's off
+		if PlayerDataManager:IsBlocking(player) then
+			Logger:Debug("Dash rejected - player is blocking", {
+				player = player.Name,
+				reason = "Cannot dash while blocking"
+			})
+			return {Success = false, ErrorCode = "BLOCKING", ErrorMessage = "Cannot dash while blocking"}
+		end
+		
 		-- Update player state
 		PlayerDataManager:SetPlayerState(player, Enums.CombatState.Dashing)
 		PlayerDataManager:SetCooldown(player, Enums.ActionType.Q, os.clock())
@@ -269,6 +330,26 @@ function ActionProcessor:ProcessSlide(player: Player, data: {[string]: any}): {[
 	
 	-- Only use PlayerDataManager for actual Players
 	if isPlayer then
+		-- FIXED: Reject Slide if stunned (December 28, 2025)
+		-- Bug 2: Players can slide during stun
+		if PlayerDataManager:IsStunned(player) then
+			Logger:Debug("Slide rejected - player is stunned", {
+				player = player.Name,
+				reason = "Cannot slide while stunned"
+			})
+			return {Success = false, ErrorCode = "STUNNED", ErrorMessage = "Cannot slide while stunned"}
+		end
+		
+		-- FIXED: Reject Slide if blocking (December 28, 2025)
+		-- Prevents desync bug where server IsBlocking=true but client thinks it's off
+		if PlayerDataManager:IsBlocking(player) then
+			Logger:Debug("Slide rejected - player is blocking", {
+				player = player.Name,
+				reason = "Cannot slide while blocking"
+			})
+			return {Success = false, ErrorCode = "BLOCKING", ErrorMessage = "Cannot slide while blocking"}
+		end
+		
 		-- Update player state
 		PlayerDataManager:SetPlayerState(player, Enums.CombatState.Sliding)
 		PlayerDataManager:SetCooldown(player, Enums.ActionType.C, os.clock())
@@ -312,6 +393,45 @@ function ActionProcessor:ProcessBlock(player: Player, data: {[string]: any}, net
 	-- Check if stunned
 	if PlayerDataManager:IsStunned(player) then
 		return {Success = false, ErrorCode = "STUNNED"}
+	end
+	
+	-- FIXED: Prevent blocking during actions (December 28, 2025)
+	-- Block can only activate when in Idle state or when already Blocking
+	if isBlocking then
+		local currentState = PlayerDataManager:GetPlayerState(player)
+		if currentState ~= Enums.CombatState.Idle and currentState ~= Enums.CombatState.Blocking then
+			Logger:Debug("Block rejected - not in valid state", {
+				player = player.Name,
+				currentState = currentState,
+				reason = "Must be Idle or Blocking to activate block"
+			})
+			return {Success = false, ErrorCode = "INVALID_STATE", ErrorMessage = "Cannot block during actions"}
+		end
+		
+		-- FIXED: Prevent reactivating block immediately after block break (December 28, 2025)
+		-- Bug 3: Spamming Block during hit evades block break effect
+		-- Check if player has block break cooldown active
+		local playerData = PlayerDataManager:GetPlayerData(player)
+		if playerData and playerData.BlockBreakCooldown and os.clock() < playerData.BlockBreakCooldown then
+			local remaining = playerData.BlockBreakCooldown - os.clock()
+			Logger:Debug("Block rejected - block break cooldown active", {
+				player = player.Name,
+				remainingCooldown = string.format("%.2fs", remaining)
+			})
+			return {Success = false, ErrorCode = "BLOCK_BREAK_COOLDOWN", ErrorMessage = "Cannot block after block break"}
+		end
+	else
+		-- FIXED: Force state synchronization when disabling block (December 28, 2025)
+		-- When client releases F, ensure server state matches by forcing Idle
+		-- This prevents desync where server thinks IsBlocking=true but client is Idle
+		local currentState = PlayerDataManager:GetPlayerState(player)
+		if currentState == Enums.CombatState.Blocking then
+			PlayerDataManager:SetPlayerState(player, Enums.CombatState.Idle)
+			Logger:Debug("Block disabled - forcing Idle state", {
+				player = player.Name,
+				previousState = "Blocking"
+			})
+		end
 	end
 	
 	-- Update blocking state

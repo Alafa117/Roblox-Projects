@@ -217,10 +217,19 @@ function NetworkServer:_HandleClientRequest(player: Player, eventType: string, d
 	end
 	
 	-- Rate limiting
-	if self._rateLimiter and not self._rateLimiter:CheckLimit(player) then
-		Logger:Warning("Rate limit exceeded", {player = player.Name, event = eventType})
-		return
+	-- FIXED: Exempt Block from rate limiting (December 28, 2025)
+	-- Block is a toggle mechanism that requires processing every Begin/End event
+	-- Rate limiting causes server to miss "End" events, leaving IsBlocking stuck ON
+	-- This creates critical desync where server thinks player is blocking but client doesn't
+	local isBlockAction = (eventType == Enums.NetworkEvent.RequestBlock)
+	
+	if self._rateLimiter and not isBlockAction then
+		if not self._rateLimiter:CheckLimit(player) then
+			Logger:Warning("Rate limit exceeded", {player = player.Name, event = eventType})
+			return
+		end
 	end
+	-- Block requests bypass rate limiting to prevent state desync
 	
 	-- Server-side cooldown validation (prevents action spam exploits)
 	if CooldownManager then
@@ -341,9 +350,15 @@ function NetworkServer:_HandleClientInvoke(player: Player, eventType: string, da
 	end
 	
 	-- Rate limiting
-	if self._rateLimiter and not self._rateLimiter:CheckLimit(player) then
-		Logger:Warning("Rate limit exceeded on invoke", {player = player.Name, event = eventType})
-		return {Success = false, ErrorCode = "RATE_LIMIT"}
+	-- FIXED: Exempt Block from rate limiting (December 28, 2025)
+	-- Block toggle requires processing every Begin/End event to prevent state desync
+	local isBlockAction = (eventType == Enums.NetworkEvent.RequestBlock)
+	
+	if self._rateLimiter and not isBlockAction then
+		if not self._rateLimiter:CheckLimit(player) then
+			Logger:Warning("Rate limit exceeded on invoke", {player = player.Name, event = eventType})
+			return {Success = false, ErrorCode = "RATE_LIMIT"}
+		end
 	end
 	
 	-- Server-side cooldown validation (prevents action spam exploits)

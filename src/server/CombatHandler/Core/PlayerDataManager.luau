@@ -138,6 +138,7 @@ function PlayerDataManager:CreatePlayerData(player: Player): Types.PlayerCombatD
 		
 		IsBlocking = false,
 		BlockStartTime = nil,
+		BlockBreakCooldown = nil, -- FIXED: Track block break cooldown (December 28, 2025)
 		
 		Health = humanoid and humanoid.Health or 100,
 		MaxHealth = humanoid and humanoid.MaxHealth or 100,
@@ -438,14 +439,29 @@ function PlayerDataManager:SetBlocking(player: Player, blocking: boolean)
 				existingHighlight:Destroy()
 			end
 			
-			-- Add visual outline for blocking (blue)
-			local highlight = Instance.new("Highlight")
-			highlight.Name = "BlockHighlight"
-			highlight.FillColor = Color3.fromRGB(0, 150, 255) -- Blue
-			highlight.OutlineColor = Color3.fromRGB(0, 100, 200)
-			highlight.FillTransparency = 0.7
-			highlight.OutlineTransparency = 0
-			highlight.Parent = data.Character
+			-- FIXED: Use task.defer to prevent invisible outline bug (December 28, 2025)
+			-- Defers highlight creation to next frame, ensuring previous one is fully destroyed
+			-- and preventing rapid spam from causing highlight desync
+			task.defer(function()
+				-- Validate character and blocking state still active
+				if not data.Character or not data.Character.Parent then return end
+				if not data.IsBlocking then return end
+				
+				-- Ensure no existing highlight (extra safety)
+				local existing = data.Character:FindFirstChild("BlockHighlight")
+				if existing then
+					existing:Destroy()
+				end
+				
+				-- Add visual outline for blocking (blue)
+				local highlight = Instance.new("Highlight")
+				highlight.Name = "BlockHighlight"
+				highlight.FillColor = Color3.fromRGB(0, 150, 255) -- Blue
+				highlight.OutlineColor = Color3.fromRGB(0, 100, 200)
+				highlight.FillTransparency = 0.7
+				highlight.OutlineTransparency = 0
+				highlight.Parent = data.Character
+			end)
 		end
 	else
 		data.BlockStartTime = nil

@@ -274,6 +274,14 @@ function StrongAttack:_BreakBlock(victim: Player)
 	-- Force end blocking
 	dataManager:SetBlocking(victim, false)
 	
+	-- FIXED: Set block break cooldown to prevent spam-blocking (December 28, 2025)
+	-- Bug 3: Spamming Block during hit evades block break
+	-- Player cannot reactivate block for BlockBreakStunDuration
+	local victimData = dataManager:GetPlayerData(victim)
+	if victimData then
+		victimData.BlockBreakCooldown = os.clock() + Config.Block.BlockBreakStunDuration
+	end
+	
 	-- Apply block break stun
 	dataManager:SetStunned(victim, true, Config.Block.BlockBreakStunDuration)
 	
