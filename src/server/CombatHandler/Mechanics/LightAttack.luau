@@ -150,6 +150,34 @@ end
 -- ========================================
 
 function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player | Model, comboCount: number)
+	-- FIXED: Check for back attack to block BEFORE applying damage (December 28, 2025)
+	-- Back attacks disable block and deal full damage, not reduced
+	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
+	if victimChar and typeof(victim) == "Instance" and victim:IsA("Player") then
+		local PlayerDataManager = require(CombatHandler.Core.PlayerDataManager).GetInstance()
+		
+		-- Check if victim is blocking
+		if PlayerDataManager:IsBlocking(victim) then
+			local attacker = attackData.Attacker
+			local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
+			
+			if attackerChar then
+				-- Check if attack is from back
+				local isFromFront = SpatialHelper.IsInFront(victimChar, attackerChar, 120)
+				
+				if not isFromFront then
+					-- FIXED: Back attack while blocking - disable block BEFORE damage (December 28, 2025)
+					-- This ensures full damage is applied, not reduced
+					PlayerDataManager:SetBlocking(victim, false)
+					Logger:Debug("Block disabled by back attack (M1) - full damage", {
+						victim = victim.Name,
+						comboCount = comboCount
+					})
+				end
+			end
+		end
+	end
+	
 	-- Apply damage through base class (Phase 2: cached service reference)
 	local hitData = self:_ApplyDamageToVictim(attackData, victim)
 	
@@ -167,6 +195,10 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 	if comboCount == 6 then
 		local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
 		
+		-- FIXED: Check for back attack to block BEFORE damage/stun (December 28, 2025)
+		-- Back attacks disable block to ensure full damage
+		local isBackAttackToBlock = false
+		
 		-- Directional block break validation (December 25, 2025)
 		-- If blocking, check attack direction to determine behavior
 		if victimChar and (hitData.HitResult == Enums.HitResult.Blocked or hitData.HitResult == Enums.HitResult.PerfectBlock) then
@@ -178,17 +210,14 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 				local isFromFront = SpatialHelper.IsInFront(victimChar, attackerChar, 120)
 				
 				if not isFromFront then
-					-- FIXED: Back attack while blocking (December 27, 2025)
-					-- Disable block and continue to apply knockback+ragdoll below
-					if typeof(victim) == "Instance" and victim:IsA("Player") then
-						local PlayerDataManager = require(CombatHandler.Core.PlayerDataManager).GetInstance()
-						PlayerDataManager:SetBlocking(victim, false)
-						Logger:Debug("Block disabled by back attack (M1 finisher) - applying knockback+ragdoll", {
-							victim = victim.Name,
-							noStun = true
-						})
-					end
-					-- Don't return - continue to knockback+ragdoll below
+					-- Back attack to block detected
+					isBackAttackToBlock = true
+					-- Block already disabled BEFORE _ApplyDamage, so damage was full ✓
+					Logger:Debug("Block disabled by back attack (M1 finisher) - applying knockback+ragdoll", {
+						victim = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victim.Name,
+						noStun = true
+					})
+					-- Continue to knockback+ragdoll below
 				else
 					-- Front attack while blocking: apply stun (block break)
 					if typeof(victim) == "Instance" and victim:IsA("Player") then
@@ -231,10 +260,6 @@ function LightAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player |
 				end
 			end
 		end
-		
-		-- Apply ragdoll with knockback if:
-		-- 1) NOT blocking at all, OR
-		-- 2) Blocking BUT attacked from back (block was disabled above)
 		if victimChar and hitData.HitResult ~= Enums.HitResult.PerfectBlock then
 			-- Calculate knockback direction
 			local attacker = attackData.Attacker

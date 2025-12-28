@@ -171,6 +171,33 @@ end
 -- ========================================
 
 function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player | Model)
+	-- FIXED: Check for back attack to block BEFORE applying damage (December 28, 2025)
+	-- Back attacks disable block to ensure full damage, not reduced
+	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
+	if victimChar and typeof(victim) == "Instance" and victim:IsA("Player") then
+		local PlayerDataManager = require(CombatHandler.Core.PlayerDataManager).GetInstance()
+		
+		-- Check if victim is blocking
+		if PlayerDataManager:IsBlocking(victim) then
+			local attacker = attackData.Attacker
+			local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
+			
+			if attackerChar then
+				-- Check if attack is from back
+				local isFromFront = SpatialHelper.IsInFront(victimChar, attackerChar, 120)
+				
+				if not isFromFront then
+					-- FIXED: Back attack while blocking - disable block BEFORE damage (December 28, 2025)
+					-- This ensures full damage is applied, not reduced
+					PlayerDataManager:SetBlocking(victim, false)
+					Logger:Debug("Block disabled by back attack (M2) - full damage + knockback", {
+						victim = victim.Name
+					})
+				end
+			end
+		end
+	end
+	
 	-- Apply damage through base class (Phase 2: cached service reference)
 	local hitData = self:_ApplyDamageToVictim(attackData, victim)
 	
@@ -190,32 +217,19 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 	-- Stun prevents knockback from working properly
 	-- Stun only applied when breaking block from front (see below)
 	
-	-- Directional block break validation (December 25, 2025)
-	if hitData.HitResult == Enums.HitResult.Blocked then
+	-- FIXED: Directional block break validation (December 28, 2025)
+	-- Back attacks already disabled block BEFORE damage (full damage applied)
+	-- Now check if we should apply front block break or allow knockback for back attacks
+	if hitData.HitResult == Enums.HitResult.Blocked or hitData.HitResult == Enums.HitResult.PerfectBlock then
 		local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
 		local attacker = attackData.Attacker
 		local attackerChar = if typeof(attacker) == "Instance" and attacker:IsA("Player") then attacker.Character else attacker
 		
 		if victimChar and attackerChar then
-			-- Check if attack is from front or back
+			-- Check if attack is from front
 			local isFromFront = SpatialHelper.IsInFront(victimChar, attackerChar, 120)
 			
-			if not isFromFront then
-				-- FIXED: Back attack while blocking (December 27, 2025)
-				-- Disable block and continue to apply knockback+ragdoll below
-				if typeof(victim) == "Instance" and victim:IsA("Player") then
-					local PlayerDataManager = require(CombatHandler.Core.PlayerDataManager).GetInstance()
-					PlayerDataManager:SetBlocking(victim, false)
-					Logger:Debug("Block disabled by back attack (M2) - applying knockback+ragdoll", {
-						victim = victim.Name,
-						noStun = true
-					})
-				else
-					-- NPC back attack
-					self:_BreakNPCBlock(victim)
-				end
-				-- Don't return - continue to knockback+ragdoll below
-			else
+			if isFromFront then
 				-- Front attack while blocking: break block with stun
 				if typeof(victim) == "Instance" and victim:IsA("Player") then
 					self:_BreakBlock(victim)
@@ -224,16 +238,27 @@ function StrongAttack:_ApplyDamage(attackData: Types.AttackData, victim: Player 
 					self:_BreakNPCBlock(victim)
 				end
 				return -- Exit early, stun applied via _BreakBlock, no ragdoll
+			else
+				-- FIXED: Back attack - block was already disabled BEFORE damage (December 28, 2025)
+				-- Full damage was dealt, now apply full knockback (reset multiplier to 1)
+				knockbackMultiplier = 1
+				Logger:Debug("Back attack to block - full knockback applied", {
+					victim = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Name else victim.Name
+				})
 			end
 		end
 	end
 	
 	-- FIXED: Apply knockback and ragdoll if (December 27, 2025):
 	-- 1) NOT blocking at all, OR
-	-- 2) Blocking BUT attacked from back (block disabled above, HitResult changes from Blocked)
-	-- Only PerfectBlock completely negates knockback
+	-- 2) Blocking BUT attacked from back (block disabled above, knockback=1)
+	-- Only PerfectBlock from front completely negates knockback
 	if hitData.HitResult == Enums.HitResult.PerfectBlock then
-		return
+		-- Check if it's a back attack (knockbackMultiplier would be 1)
+		if knockbackMultiplier == 0.1 then
+			return -- Front perfect block, no knockback
+		end
+		-- Back perfect block, continue to knockback with multiplier=1
 	end
 	
 	local victimChar = if typeof(victim) == "Instance" and victim:IsA("Player") then victim.Character else victim
