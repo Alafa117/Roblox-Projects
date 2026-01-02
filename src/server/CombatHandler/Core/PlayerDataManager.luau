@@ -139,6 +139,7 @@ function PlayerDataManager:CreatePlayerData(player: Player): Types.PlayerCombatD
 		IsBlocking = false,
 		BlockStartTime = nil,
 		BlockBreakCooldown = nil, -- FIXED: Track block break cooldown (December 28, 2025)
+		BlockInputHeld = false, -- FIXED: Track if F is currently pressed (December 28, 2025)
 		
 		Health = humanoid and humanoid.Health or 100,
 		MaxHealth = humanoid and humanoid.MaxHealth or 100,
@@ -466,19 +467,37 @@ function PlayerDataManager:SetBlocking(player: Player, blocking: boolean)
 	else
 		data.BlockStartTime = nil
 		
+		-- FIXED: Only set state to Idle if not performing an action (December 30, 2025)
+		-- Bug: Spamming Block during M1/M2 allows Block to activate mid-action
+		-- Don't change state to Idle if performing LightAttack, StrongAttack, Dash, or Slide
+		-- State will naturally transition to Idle when the action completes
+		local currentState = data.CurrentState
+		if currentState == Enums.CombatState.Blocking then
+			-- Only change to Idle if currently in Blocking state
+			self:SetPlayerState(player, Enums.CombatState.Idle)
+		end
+		-- If in other states (LightAttacking, StrongAttacking, Dashing, Sliding), keep that state
+		
 		-- Restore movement speed (December 26, 2025)
 		if data.Character and data.Humanoid then
 			data.Humanoid.WalkSpeed = 16 -- Default speed
 			
-			-- Remove blocking outline
+			-- FIXED: Immediate highlight removal (December 29, 2025)
+			-- Remove blocking outline immediately when block is disabled
 			local highlight = data.Character:FindFirstChild("BlockHighlight")
 			if highlight then
 				highlight:Destroy()
 			end
-		end
-		
-		if data.CurrentState == Enums.CombatState.Blocking then
-			self:SetPlayerState(player, Enums.CombatState.Idle)
+			
+			-- FIXED: Also defer cleanup to catch any deferred highlights (December 29, 2025)
+			-- This ensures any pending deferred highlight creation is also cleaned up
+			task.defer(function()
+				if not data.Character then return end
+				local pendingHighlight = data.Character:FindFirstChild("BlockHighlight")
+				if pendingHighlight then
+					pendingHighlight:Destroy()
+				end
+			end)
 		end
 	end
 	

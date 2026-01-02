@@ -408,14 +408,21 @@ function CombatService:_ValidateAction(player: Player, actionType: string): Type
 	end
 	
 	-- Check cooldown
-	local cooldownDuration = self:_GetCooldownDuration(actionType)
-	if not PlayerDataManager:IsCooldownReady(player, actionType, cooldownDuration) then
-		local remaining = PlayerDataManager:GetCooldownRemaining(player, actionType, cooldownDuration)
-		return {
-			Success = false,
-			ErrorMessage = string.format("Cooldown not ready: %.2fs remaining", remaining),
-			ErrorCode = "ON_COOLDOWN"
-		}
+	-- FIXED: Skip cooldown validation for M1 during combo (December 30, 2025)
+	-- M1 combo hits (1-5) don't have server cooldown validation
+	-- Only finisher (hit 6) validates cooldown, preventing timing precision issues
+	local skipCooldownCheck = (actionType == Enums.ActionType.M1)
+	
+	if not skipCooldownCheck then
+		local cooldownDuration = self:_GetCooldownDuration(actionType)
+		if not PlayerDataManager:IsCooldownReady(player, actionType, cooldownDuration) then
+			local remaining = PlayerDataManager:GetCooldownRemaining(player, actionType, cooldownDuration)
+			return {
+				Success = false,
+				ErrorMessage = string.format("Cooldown not ready: %.2fs remaining", remaining),
+				ErrorCode = "ON_COOLDOWN"
+			}
+		end
 	end
 	
 	return {Success = true}

@@ -159,8 +159,18 @@ end
 
 -- Handle M1 light attack with combo system
 function ActionHandler:HandleLightAttack()
+	-- FIXED: Check cooldown BEFORE anything else (December 30, 2025)
+	-- Don't execute, buffer, or animate when M1 is on cooldown (after finisher)
+	-- This prevents animation desync and unnecessary input spam
+	local isOnCooldown = self._cooldownManager:GetRemaining(Enums.ActionType.M1) > 0
+	if isOnCooldown then
+		Logger:ClientValidationFailed("M1", "On cooldown")
+		return
+	end
+	
 	-- Check if can attack
 	if not self._combatController:CanPerformAction(Enums.ActionType.M1) then
+		-- Only buffer if state is invalid (not cooldown, we already checked that)
 		self._inputBuffering:AddInput(Enums.ActionType.M1)
 		return
 	end
@@ -168,32 +178,57 @@ function ActionHandler:HandleLightAttack()
 	-- Cancel movement if active (consolidated logic)
 	local _, cancelledMovement = self:_CancelActiveMovement()
 	
-	-- Update combo using ComboManager (returns count and window status)
-	local comboCount, wasInWindow = self._comboManager:UpdateCombo()
+	-- Get current combo without incrementing (server will handle increment)
+	local currentComboCount = self._comboManager:GetCurrentCombo()
 	
-	-- Update state
-	self._stateManager:HandleLightAttackState()
-	
-	-- FIXED: Apply cooldown IMMEDIATELY to prevent spam (December 26, 2025)
-	-- Previous task.delay approach allowed multiple clicks before cooldown activated
-	-- Animation duration naturally prevents clicks, cooldown prevents buffer spam
-	self._cooldownManager:Start(Enums.ActionType.M1)
-	
-	-- Play animation locally (prediction)
-	self._animationController:PlayLightAttack(comboCount)
-	
-	-- Send to server
-	Logger:ClientAction("M1 Request", string.format("Combo: %d, CancelledMovement: %s", comboCount, tostring(cancelledMovement)))
-	self._networkManager:SendToServer(Enums.NetworkEvent.RequestAction, {
+	-- Send to server and wait for response BEFORE playing animation
+	-- FIXED: Wait for server confirmation before playing animation (December 30, 2025)
+	-- This prevents animations from playing when action is rejected (e.g., during M2)
+	Logger:ClientAction("M1 Request", string.format("CurrentCombo: %d, CancelledMovement: %s", currentComboCount, tostring(cancelledMovement)))
+	local result = self._networkManager:InvokeServer(Enums.NetworkEvent.RequestAction, {
 		ActionType = Enums.ActionType.M1,
-		ComboCount = comboCount,
+		ComboCount = currentComboCount,
 		CancelledMovement = cancelledMovement,
 	})
+	
+	-- Handle server response
+	if result and result.Success then
+		-- Server accepted: Update state, play animation, apply cooldown
+		self._stateManager:HandleLightAttackState()
+		
+		if result.ComboCount then
+			-- Sync combo with server
+			self._comboManager:SetCombo(result.ComboCount)
+			
+			-- Play animation based on server's combo count
+			self._animationController:PlayLightAttack(result.ComboCount)
+			
+			-- Apply cooldown based on server's combo count
+			if result.ComboCount == 6 then
+				self._cooldownManager:StartWithDuration(Enums.ActionType.M1, 3.0)
+				Logger:ClientAction("M1 Finisher", "Applied 3s cooldown")
+			else
+				self._cooldownManager:Start(Enums.ActionType.M1)
+			end
+		end
+	elseif result and result.ServerComboCount ~= nil then
+		-- Server rejected: Sync combo to server's state, NO animation or state change
+		self._comboManager:SetCombo(result.ServerComboCount)
+		Logger:ClientValidationFailed("M1", string.format("Rejected by server, synced combo to %d", result.ServerComboCount))
+	end
 end
 
 -- Handle M2 strong attack
 function ActionHandler:HandleStrongAttack()
 	Logger:ClientAction("_HandleStrongAttack", "Called")
+	
+	-- FIXED: Check cooldown BEFORE attempting action (December 30, 2025)
+	-- Don't buffer or attempt M2 when on cooldown (3s after execution)
+	local isOnCooldown = self._cooldownManager:GetRemaining(Enums.ActionType.M2) > 0
+	if isOnCooldown then
+		Logger:ClientValidationFailed("M2", "On cooldown")
+		return
+	end
 	
 	-- Check if can attack
 	if not self._combatController:CanPerformAction(Enums.ActionType.M2) then
@@ -204,30 +239,35 @@ function ActionHandler:HandleStrongAttack()
 	-- Cancel movement if active (consolidated logic)
 	local _, cancelledMovement = self:_CancelActiveMovement()
 	
-	-- Update state
-	self._stateManager:HandleStrongAttackState()
-	
-	-- FIXED: Start cooldown IMMEDIATELY, but with extended duration (December 27, 2025)
-	-- M2 cooldown = animation (0.8s) + actual cooldown (3.0s) = 3.8s total
-	-- This prevents spam during animation while maintaining proper cooldown after
-	self._cooldownManager:Start(Enums.ActionType.M2)
-	
-	-- Reset combo
-	self._comboManager:ResetCombo()
-	
-	-- Play animation locally (prediction)
-	self._animationController:PlayStrongAttack()
-	
-	-- FIXED: Don't apply outline here (December 28, 2025)
-	-- Outline now applied only when server confirms execution via PlayAnimation event
-	-- This prevents confusing outline when M2 is rejected (Stunned/Blocking)
-	
-	-- Send to server
+	-- Send to server and wait for response BEFORE playing animation
+	-- FIXED: Wait for server confirmation before playing animation (December 30, 2025)
+	-- This prevents animations from playing when action is rejected (e.g., during M1)
 	Logger:ClientAction("M2 Request", string.format("Instant attack, CancelledMovement: %s", tostring(cancelledMovement)))
-	self._networkManager:SendToServer(Enums.NetworkEvent.RequestAction, {
+	local result = self._networkManager:InvokeServer(Enums.NetworkEvent.RequestAction, {
 		ActionType = Enums.ActionType.M2,
 		CancelledMovement = cancelledMovement,
 	})
+	
+	-- Handle server response
+	if result and result.Success then
+		-- Server accepted: Update state, play animation, apply cooldown
+		self._stateManager:HandleStrongAttackState()
+		
+		-- Start cooldown IMMEDIATELY
+		-- M2 cooldown = animation (0.8s) + actual cooldown (3.0s) = 3.8s total
+		self._cooldownManager:Start(Enums.ActionType.M2)
+		
+		-- Reset combo
+		self._comboManager:ResetCombo()
+		
+		-- Play animation
+		self._animationController:PlayStrongAttack()
+		
+		-- NOTE: Outline applied by server via PlayAnimation event callback
+	else
+		-- Server rejected: NO animation, state change, or cooldown
+		Logger:ClientValidationFailed("M2", "Rejected by server")
+	end
 end
 
 -- Handle Q dash
@@ -240,30 +280,37 @@ function ActionHandler:HandleDash(direction: string)
 		return
 	end
 	
-	-- Update state using StateManager
-	self._stateManager:HandleDashState()
-	
-	-- FIXED: Apply cooldown AFTER dash completes (December 26, 2025)
-	-- Dash duration is 0.45s
-	local dashDuration = 0.45
-	task.delay(dashDuration, function()
-		self._cooldownManager:Start(Enums.ActionType.Q)
-	end)
-	
-	-- Play animation locally
-	self._animationController:PlayDash(direction)
-	
-	-- Send to server (for validation/authority)
-	self._networkManager:SendToServer(Enums.NetworkEvent.RequestDash, {
+	-- Send to server and wait for response BEFORE executing
+	-- FIXED: Wait for server confirmation before executing (December 31, 2025)
+	-- This prevents Dash from executing during M1/M2
+	local result = self._networkManager:InvokeServer(Enums.NetworkEvent.RequestDash, {
 		Direction = direction,
 	})
 	
-	-- Start client-side dynamic movement
-	self._movementController:StartDynamicMovement("Dash", {
-		Speed = Config.Dash.Speed,
-		Duration = Config.Dash.Duration,
-		FrictionMultiplier = Config.Dash.FrictionMultiplier,
-	})
+	-- Handle server response
+	if result and result.Success then
+		-- Server accepted: Update state, play animation, start movement
+		self._stateManager:HandleDashState()
+		
+		-- Play animation
+		self._animationController:PlayDash(direction)
+		
+		-- Start client-side dynamic movement
+		self._movementController:StartDynamicMovement("Dash", {
+			Speed = Config.Dash.Speed,
+			Duration = Config.Dash.Duration,
+			FrictionMultiplier = Config.Dash.FrictionMultiplier,
+		})
+		
+		-- Apply cooldown AFTER dash completes
+		local dashDuration = 0.45
+		task.delay(dashDuration, function()
+			self._cooldownManager:Start(Enums.ActionType.Q)
+		end)
+	else
+		-- Server rejected: NO animation, state change, or movement
+		Logger:ClientValidationFailed("Dash", "Rejected by server")
+	end
 end
 
 -- Handle C slide
@@ -276,31 +323,38 @@ function ActionHandler:HandleSlide(direction: string)
 		return
 	end
 	
-	-- Update state using StateManager
-	self._stateManager:HandleSlideState()
-	
-	-- FIXED: Apply cooldown AFTER slide completes (December 26, 2025)
-	-- Slide duration is 0.4s
-	local slideDuration = 0.4
-	task.delay(slideDuration, function()
-		self._cooldownManager:Start(Enums.ActionType.C)
-	end)
-	
-	-- Play animation locally
-	self._animationController:PlaySlide()
-	
-	-- Send to server (for validation/authority)
+	-- Send to server and wait for response BEFORE executing
+	-- FIXED: Wait for server confirmation before executing (December 31, 2025)
+	-- This prevents Slide from executing during M1/M2
 	Logger:ClientAction("Slide Request", "Sent to server")
-	self._networkManager:SendToServer(Enums.NetworkEvent.RequestSlide, {
+	local result = self._networkManager:InvokeServer(Enums.NetworkEvent.RequestSlide, {
 		Direction = direction,
 	})
 	
-	-- Start client-side dynamic movement
-	self._movementController:StartDynamicMovement("Slide", {
-		Speed = Config.Slide.Speed,
-		Duration = Config.Slide.Duration,
-		FrictionMultiplier = Config.Slide.FrictionMultiplier,
-	})
+	-- Handle server response
+	if result and result.Success then
+		-- Server accepted: Update state, play animation, start movement
+		self._stateManager:HandleSlideState()
+		
+		-- Play animation
+		self._animationController:PlaySlide()
+		
+		-- Start client-side dynamic movement
+		self._movementController:StartDynamicMovement("Slide", {
+			Speed = Config.Slide.Speed,
+			Duration = Config.Slide.Duration,
+			FrictionMultiplier = Config.Slide.FrictionMultiplier,
+		})
+		
+		-- Apply cooldown AFTER slide completes
+		local slideDuration = 0.4
+		task.delay(slideDuration, function()
+			self._cooldownManager:Start(Enums.ActionType.C)
+		end)
+	else
+		-- Server rejected: NO animation, state change, or movement
+		Logger:ClientValidationFailed("Slide", "Rejected by server")
+	end
 end
 
 -- Handle F block start

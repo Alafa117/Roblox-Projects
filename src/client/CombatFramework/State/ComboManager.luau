@@ -73,6 +73,17 @@ function ComboManager:GetComboCount(): number
 	return self._comboCount
 end
 
+-- FIXED: Get current combo count (alias for server sync) (December 30, 2025)
+function ComboManager:GetCurrentCombo(): number
+	return self._comboCount
+end
+
+-- FIXED: Set combo count directly (for server sync) (December 30, 2025)
+function ComboManager:SetCombo(count: number)
+	self._comboCount = math.clamp(count, 0, Config.LightAttack.MaxComboCount)
+	self._lastAttackTime = os.clock()
+end
+
 -- Get last attack timestamp
 function ComboManager:GetLastAttackTime(): number
 	return self._lastAttackTime

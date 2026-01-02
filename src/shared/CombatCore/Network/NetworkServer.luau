@@ -237,10 +237,13 @@ function NetworkServer:_HandleClientRequest(player: Player, eventType: string, d
 		if actionType then
 			-- FIXED: Block has NO cooldown validation (December 27, 2025)
 			-- Block is defensive and must be immediately available
-			-- Only validate cooldown for offensive actions
+			-- FIXED: M1 has NO cooldown validation here (December 30, 2025)
+			-- M1 combo hits are validated by client only to prevent timing precision issues
+			-- Server will validate after hit 6 via CombatService
 			local isBlockAction = (eventType == Enums.NetworkEvent.RequestBlock)
+			local isM1Action = (actionType == "M1")
 			
-			if not isBlockAction then
+			if not isBlockAction and not isM1Action then
 				if not CooldownManager:CanPerformAction(player, actionType) then
 					local remaining = CooldownManager:GetRemainingCooldown(player, actionType)
 					Logger:Warning("Action on cooldown", {
@@ -311,8 +314,10 @@ function NetworkServer:_HandleClientRequest(player: Player, eventType: string, d
 		if not success then
 			Logger:Error("Handler error", {event = eventType, error = result})
 		else
-			-- Record action for cooldown tracking on success (prevents rapid-fire exploits)
-			if CooldownManager then
+			-- FIXED: Only record cooldown if action was actually executed (December 30, 2025)
+			-- Check result.Success to prevent cooldown recording on rejected actions
+			-- This prevents combo desync when M1 is rejected during M2/other states
+			if CooldownManager and result and result.Success then
 				local actionType = self:_GetActionTypeFromRequest(eventType, data)
 				if actionType then
 					-- FIXED: Don't record cooldown for Block at all (December 27, 2025)
@@ -365,14 +370,21 @@ function NetworkServer:_HandleClientInvoke(player: Player, eventType: string, da
 	if CooldownManager then
 		local actionType = self:_GetActionTypeFromRequest(eventType, data)
 		if actionType then
-			if not CooldownManager:CanPerformAction(player, actionType) then
-				local remaining = CooldownManager:GetRemainingCooldown(player, actionType)
-				Logger:Warning("Action on cooldown (invoke)", {
-					player = player.Name,
-					action = actionType,
-					remaining = string.format("%.2fs", remaining)
-				})
-				return {Success = false, ErrorCode = "ON_COOLDOWN"}
+			-- FIXED: M1 has NO cooldown validation here (December 30, 2025)
+			-- M1 combo hits are validated by client only to prevent timing precision issues
+			-- Server will validate after hit 6 via CombatService
+			local isM1Action = (actionType == "M1")
+			
+			if not isM1Action then
+				if not CooldownManager:CanPerformAction(player, actionType) then
+					local remaining = CooldownManager:GetRemainingCooldown(player, actionType)
+					Logger:Warning("Action on cooldown (invoke)", {
+						player = player.Name,
+						action = actionType,
+						remaining = string.format("%.2fs", remaining)
+					})
+					return {Success = false, ErrorCode = "ON_COOLDOWN"}
+				end
 			end
 		end
 	end
@@ -432,8 +444,10 @@ function NetworkServer:_HandleClientInvoke(player: Player, eventType: string, da
 		end)
 		
 		if success then
-			-- Record action for cooldown tracking on success (prevents rapid-fire exploits)
-			if CooldownManager then
+			-- FIXED: Only record cooldown if action was actually executed (December 30, 2025)
+			-- Check result.Success to prevent cooldown recording on rejected actions
+			-- This prevents combo desync when M1 is rejected during M2/other states
+			if CooldownManager and result and result.Success then
 				local actionType = self:_GetActionTypeFromRequest(eventType, data)
 				if actionType then
 					CooldownManager:RecordAction(player, actionType)

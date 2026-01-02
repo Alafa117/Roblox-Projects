@@ -103,6 +103,16 @@ function CooldownManager:Start(actionType: string)
 	self._cooldowns[actionType] = os.clock()
 end
 
+-- FIXED: Start cooldown with custom duration (December 30, 2025)
+-- Used for finisher attacks that have different cooldown than regular attacks
+function CooldownManager:StartWithDuration(actionType: string, customDuration: number)
+	-- Set timestamp in the past to create the desired cooldown duration
+	-- Example: For 3s cooldown, set timestamp to (now - configDuration + 3s)
+	local configDuration = self:GetCooldownDuration(actionType)
+	local offset = customDuration - configDuration
+	self._cooldowns[actionType] = os.clock() + offset
+end
+
 -- Clear cooldown for action (set to 0 for instant reuse)
 -- Used for combo attacks (M1) to allow instant next hit
 function CooldownManager:Clear(actionType: string)
